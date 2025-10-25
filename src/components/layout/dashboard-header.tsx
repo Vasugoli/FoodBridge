@@ -32,7 +32,7 @@ export function DashboardHeader({ user }: { user: User }) {
 
   return (
     <header className="flex h-14 items-center gap-4 border-b bg-background px-4 lg:h-[60px] lg:px-6 sticky top-0 z-30">
-      <div className="md:hidden">
+      <div>
         <SidebarTrigger />
       </div>
       <div className="w-full flex-1">
