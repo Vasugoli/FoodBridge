@@ -38,16 +38,16 @@ export default function Home() {
       <Header />
       <main className="flex-grow">
         {/* Hero Section */}
-        <section className="relative w-full py-20 md:py-32 lg:py-40">
+        <section className="relative w-full py-20 md:py-32 lg:py-40 animate-fade-in">
           <div className="container mx-auto px-4 md:px-6 text-center">
             <div className="max-w-3xl mx-auto">
-              <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl md:text-6xl font-headline">
+              <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl md:text-6xl font-headline animate-slide-up">
                 Saving Food, Serving Lives
               </h1>
-              <p className="mt-6 text-lg leading-8 text-muted-foreground">
+              <p className="mt-6 text-lg leading-8 text-muted-foreground animate-slide-up animation-delay-200">
                 FoodBridge connects communities to rescue surplus food, reduce waste, and fight hunger. Join us in making a difference, one meal at a time.
               </p>
-              <div className="mt-10 flex items-center justify-center gap-x-6">
+              <div className="mt-10 flex items-center justify-center gap-x-6 animate-slide-up animation-delay-400">
                 <Button asChild size="lg">
                   <Link href="/signup">Get Started <ArrowRight className="ml-2 h-5 w-5" /></Link>
                 </Button>
@@ -85,7 +85,7 @@ export default function Home() {
                 { step: 2, title: 'Find & Claim', image: howItWorksImages[2] },
                 { step: 3, title: 'Collect & Distribute', image: howItWorksImages[3] },
               ].map(({ step, title, image }) => (
-                <Card key={step} className="text-center shadow-lg hover:shadow-xl transition-shadow duration-300">
+                <Card key={step} className="text-center shadow-lg hover:shadow-xl transition-shadow duration-300 transform hover:-translate-y-2 animate-fade-in">
                   <CardHeader>
                     {image && <Image src={image.imageUrl} alt={image.description} width={400} height={300} className="rounded-t-lg aspect-[4/3] object-cover" data-ai-hint={image.imageHint} />}
                   </CardHeader>
@@ -108,7 +108,7 @@ export default function Home() {
             </div>
             <div className="mt-16 grid grid-cols-1 gap-8 md:grid-cols-3">
               {features.map((feature, index) => (
-                <div key={index} className="flex flex-col items-center text-center p-6">
+                <div key={index} className="flex flex-col items-center text-center p-6 animate-fade-in" style={{ animationDelay: `${index * 200}ms` }}>
                   <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 mb-4">
                     {feature.icon}
                   </div>
@@ -123,11 +123,11 @@ export default function Home() {
         {/* CTA Section */}
         <section className="bg-secondary py-16 sm:py-24">
           <div className="container mx-auto px-4 md:px-6 text-center">
-            <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl font-headline">Join the Movement Today</h2>
-            <p className="mt-4 text-lg text-muted-foreground max-w-2xl mx-auto">
+            <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl font-headline animate-slide-up">Join the Movement Today</h2>
+            <p className="mt-4 text-lg text-muted-foreground max-w-2xl mx-auto animate-slide-up animation-delay-200">
               Whether you have food to give or hands to help, you can make a tangible impact on your community.
             </p>
-            <div className="mt-10 flex items-center justify-center gap-x-6">
+            <div className="mt-10 flex items-center justify-center gap-x-6 animate-slide-up animation-delay-400">
               <Button asChild size="lg">
                 <Link href="/signup">Sign Up to Donate</Link>
               </Button>
