@@ -22,11 +22,11 @@ import {
   SidebarFooter,
   SidebarHeader,
   SidebarTrigger,
+  useSidebar
 } from "@/components/ui/sidebar";
 import type { UserRole } from "@/lib/types";
 import { Separator } from "../ui/separator";
 import { Logo } from "../icons/logo";
-import { Button } from "../ui/button";
 
 interface SidebarProps {
   role: UserRole;
@@ -52,6 +52,7 @@ const distributorNav = [
 
 export function AppSidebar({ role }: SidebarProps) {
   const pathname = usePathname();
+  const { state } = useSidebar();
 
   const navItems = {
     admin: adminNav,
@@ -62,8 +63,8 @@ export function AppSidebar({ role }: SidebarProps) {
   return (
     <Sidebar>
       <SidebarHeader className="flex items-center justify-between">
-         <Logo />
-         <SidebarTrigger><Button variant="ghost" size="icon"><PanelLeft /></Button></SidebarTrigger>
+         <Logo showName={state === 'expanded'} />
+         <SidebarTrigger><PanelLeft /></SidebarTrigger>
       </SidebarHeader>
       <SidebarContent>
         <SidebarMenu>
