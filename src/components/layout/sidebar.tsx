@@ -63,7 +63,7 @@ export function AppSidebar({ role }: SidebarProps) {
     <Sidebar>
       <SidebarHeader className="flex items-center justify-between">
          <Logo />
-         <SidebarTrigger asChild><Button variant="ghost" size="icon"><PanelLeft /></Button></SidebarTrigger>
+         <SidebarTrigger><Button variant="ghost" size="icon"><PanelLeft /></Button></SidebarTrigger>
       </SidebarHeader>
       <SidebarContent>
         <SidebarMenu>
