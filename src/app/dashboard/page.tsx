@@ -6,25 +6,30 @@ import type { UserRole } from "@/lib/types";
 
 // This component acts as a router to display the correct dashboard
 // based on the user's role.
-export default function DashboardPage({ searchParams }: { searchParams: { role: string } }) {
-  // In a real app, you'd get the user from the session, not search params.
-  // This is for demonstration purposes to easily switch between roles.
-  // e.g., /dashboard?role=admin
-  const role = (searchParams.role as UserRole) || 'donor';
-  const user = getMockUser(role);
+export default async function DashboardPage({
+	searchParams,
+}: {
+	searchParams: { role?: string } | Promise<{ role?: string }>;
+}) {
+	// In a real app, you'd get the user from the session, not search params.
+	// This is for demonstration purposes to easily switch between roles.
+	// e.g., /dashboard?role=admin
+	const params = await searchParams;
+	const role = (params?.role as UserRole) || "donor";
+	const user = getMockUser(role);
 
-  const renderDashboard = () => {
-    switch (user.role) {
-      case 'admin':
-        return <AdminDashboard user={user} />;
-      case 'donor':
-        return <DonorDashboard user={user} />;
-      case 'distributor':
-        return <DistributorDashboard user={user} />;
-      default:
-        return <div>Invalid user role.</div>;
-    }
-  };
+	const renderDashboard = () => {
+		switch (user.role) {
+			case "admin":
+				return <AdminDashboard user={user} />;
+			case "donor":
+				return <DonorDashboard user={user} />;
+			case "distributor":
+				return <DistributorDashboard user={user} />;
+			default:
+				return <div>Invalid user role.</div>;
+		}
+	};
 
-  return <div className="h-full">{renderDashboard()}</div>;
+	return <div className='h-full'>{renderDashboard()}</div>;
 }
