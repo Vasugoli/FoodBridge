@@ -16,13 +16,11 @@ import {
 import {
   Sidebar,
   SidebarContent,
-  SidebarHeader,
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
   SidebarFooter
 } from "@/components/ui/sidebar";
-import { Logo } from "@/components/icons/logo";
 import type { UserRole } from "@/lib/types";
 import { Separator } from "../ui/separator";
 
@@ -59,9 +57,6 @@ export function AppSidebar({ role }: SidebarProps) {
 
   return (
     <Sidebar>
-      <SidebarHeader>
-        <Logo />
-      </SidebarHeader>
       <SidebarContent>
         <SidebarMenu>
           {navItems.map((item) => (

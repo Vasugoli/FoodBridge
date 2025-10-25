@@ -26,14 +26,16 @@ import {
 } from "@/components/ui/popover"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { SidebarTrigger } from "@/components/ui/sidebar"
+import { Logo } from "../icons/logo"
 
 export function DashboardHeader({ user }: { user: User }) {
   const userInitials = user.name.split(' ').map(n => n[0]).join('');
 
   return (
     <header className="flex h-14 items-center gap-4 border-b bg-background px-4 lg:h-[60px] lg:px-6 sticky top-0 z-30">
-      <div>
+      <div className="flex items-center gap-4">
         <SidebarTrigger />
+        <Logo className="hidden md:flex" />
       </div>
       <div className="w-full flex-1">
         {/* Can add a global search here if needed */}
