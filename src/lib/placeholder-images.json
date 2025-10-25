@@ -1,3 +1,76 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "hero",
+      "description": "A vibrant image of a community sharing food.",
+      "imageUrl": "https://images.unsplash.com/photo-1593560705464-3196d5d7b11a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw1fHxjb21tdW5pdHklMjBmb29kfGVufDB8fHx8MTc2MTI4NDkyNXww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "community food"
+    },
+    {
+      "id": "how-it-works-1",
+      "description": "A person taking a picture of food to donate.",
+      "imageUrl": "https://images.unsplash.com/photo-1710092784814-4a6f158913b8?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxfHxkb25hdGluZyUyMGZvb2R8ZW58MHx8fHwxNzYxMzg4MTY1fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "donating food"
+    },
+    {
+      "id": "how-it-works-2",
+      "description": "A volunteer looking at a map on their phone.",
+      "imageUrl": "https://images.unsplash.com/photo-1569998083823-139fd1a1e6c1?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxfHx2b2x1bnRlZXIlMjBtYXB8ZW58MHx8fHwxNzYxMzg4MTY1fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "volunteer map"
+    },
+    {
+      "id": "how-it-works-3",
+      "description": "A person handing a box of food to another person.",
+      "imageUrl": "https://images.unsplash.com/photo-1621972750749-0fbb1abb7736?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwyfHxmb29kJTIwZGVsaXZlcnl8ZW58MHx8fHwxNzYxMzg4MTY1fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "food delivery"
+    },
+    {
+      "id": "donation-1",
+      "description": "A box of fresh bread.",
+      "imageUrl": "https://images.unsplash.com/photo-1609246280917-339404083c49?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxfHxicmVhZCUyMGJveHxlbnwwfHx8fDE3NjEzODgxNjV8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "bread box"
+    },
+    {
+      "id": "donation-2",
+      "description": "Crates of fresh vegetables.",
+      "imageUrl": "https://images.unsplash.com/photo-1687199129630-8ea8b283ab05?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw3fHx2ZWdldGFibGUlMjBjcmF0ZXxlbnwwfHx8fDE3NjEzMDEzODR8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "vegetable crate"
+    },
+    {
+      "id": "donation-3",
+      "description": "A catering tray of sandwiches.",
+      "imageUrl": "https://images.unsplash.com/photo-1594403759253-d670ebf8a4cf?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw0fHxzYW5kd2ljaCUyMHRyYXl8ZW58MHx8fHwxNzYxMzg4MTY1fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "sandwich tray"
+    },
+    {
+      "id": "donation-4",
+      "description": "Cartons of milk.",
+      "imageUrl": "https://images.unsplash.com/photo-1611423475544-6416af15951a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw3fHxtaWxrJTIwY2FydG9uc3xlbnwwfHx8fDE3NjEzNTg0ODN8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "milk cartons"
+    },
+    {
+      "id": "map-placeholder",
+      "description": "A placeholder image of a city map with pins.",
+      "imageUrl": "https://images.unsplash.com/photo-1717343823307-973d0903d222?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw2fHxjaXR5JTIwbWFwfGVufDB8fHx8MTc2MTMwMzY4NXww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "city map"
+    },
+    {
+      "id": "avatar-1",
+      "description": "Avatar for a user.",
+      "imageUrl": "https://images.unsplash.com/photo-1600180758890-6b94519a8ba6?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwyfHxwZXJzb24lMjBwb3J0cmFpdHxlbnwwfHx8fDE3NjEzMjQyNDB8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "person portrait"
+    },
+    {
+      "id": "avatar-2",
+      "description": "Avatar for another user.",
+      "imageUrl": "https://images.unsplash.com/photo-1610655507808-a59293f4e332?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw2fHx3b21hbiUyMHBvcnRyYWl0fGVufDB8fHx8MTc2MTM4NTI1OHww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "woman portrait"
+    },
+    {
+      "id": "avatar-3",
+      "description": "Avatar for another user.",
+      "imageUrl": "https://images.unsplash.com/photo-1583195763986-0231686dcd43?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw5fHxtYW4lMjBwb3J0cmFpdHxlbnwwfHx8fDE3NjEzNjg0OTN8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "man portrait"
+    }
+  ]
 }
