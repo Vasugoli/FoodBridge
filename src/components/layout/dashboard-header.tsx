@@ -32,17 +32,19 @@ export function DashboardHeader({ user }: { user: User }) {
   const userInitials = user.name.split(' ').map(n => n[0]).join('');
 
   return (
-    <header className="flex h-14 items-center gap-4 border-b bg-background px-4 lg:h-[60px] lg:px-6 sticky top-0 z-30">
-      <div className="flex items-center gap-4">
-        <SidebarTrigger />
-        <Logo className="hidden md:flex" />
+    <header className="flex h-14 items-center gap-4 border-b bg-background/60 px-4 lg:h-[60px] lg:px-6 sticky top-0 z-30 backdrop-blur-sm">
+      <div className="flex items-center gap-2">
+        <SidebarTrigger className="md:hidden" />
+        <Link href="/" className="hidden md:block">
+          <Logo />
+        </Link>
       </div>
       <div className="w-full flex-1">
         {/* Can add a global search here if needed */}
       </div>
       <Popover>
         <PopoverTrigger asChild>
-          <Button variant="outline" size="icon" className="h-8 w-8">
+          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full">
             <Bell className="h-4 w-4" />
             <span className="sr-only">Toggle notifications</span>
           </Button>

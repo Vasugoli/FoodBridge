@@ -26,7 +26,7 @@ export default function DashboardLayout({
         <AppSidebar role={user.role} />
         <div className="flex flex-1 flex-col overflow-hidden">
           <DashboardHeader user={user} />
-          <main className="flex-1 overflow-y-auto overflow-x-hidden bg-secondary/20 p-4 md:p-6">
+          <main className="flex-1 overflow-y-auto overflow-x-hidden bg-background p-4 md:p-6">
             {children}
           </main>
         </div>

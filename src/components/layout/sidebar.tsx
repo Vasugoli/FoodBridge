@@ -11,7 +11,7 @@ import {
   PackageSearch,
   CheckCircle,
   Settings,
-  BarChart3
+  PanelLeft,
 } from "lucide-react";
 import {
   Sidebar,
@@ -19,10 +19,14 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
-  SidebarFooter
+  SidebarFooter,
+  SidebarHeader,
+  SidebarTrigger,
 } from "@/components/ui/sidebar";
 import type { UserRole } from "@/lib/types";
 import { Separator } from "../ui/separator";
+import { Logo } from "../icons/logo";
+import { Button } from "../ui/button";
 
 interface SidebarProps {
   role: UserRole;
@@ -57,6 +61,10 @@ export function AppSidebar({ role }: SidebarProps) {
 
   return (
     <Sidebar>
+      <SidebarHeader className="flex items-center justify-between">
+         <Logo />
+         <SidebarTrigger asChild><Button variant="ghost" size="icon"><PanelLeft /></Button></SidebarTrigger>
+      </SidebarHeader>
       <SidebarContent>
         <SidebarMenu>
           {navItems.map((item) => (

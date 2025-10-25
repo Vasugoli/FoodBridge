@@ -38,7 +38,8 @@ export default function Home() {
       <Header />
       <main className="flex-grow">
         {/* Hero Section */}
-        <section className="relative w-full py-20 md:py-32 lg:py-40 animate-fade-in">
+        <section className="relative w-full py-20 md:py-32 lg:py-40">
+           <div className="absolute inset-0 -z-10 h-full w-full bg-gradient-to-t from-background via-transparent to-transparent" />
           <div className="container mx-auto px-4 md:px-6 text-center">
             <div className="max-w-3xl mx-auto">
               <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl md:text-6xl font-headline animate-slide-up">
@@ -58,7 +59,7 @@ export default function Home() {
             </div>
           </div>
           {heroImage && (
-            <div className="absolute inset-0 -z-10 h-full w-full">
+            <div className="absolute inset-0 -z-20 h-full w-full">
               <Image
                 src={heroImage.imageUrl}
                 alt={heroImage.description}
@@ -67,31 +68,31 @@ export default function Home() {
                 className="object-cover opacity-10"
                 data-ai-hint={heroImage.imageHint}
               />
-               <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-transparent" />
             </div>
           )}
         </section>
 
         {/* How It Works Section */}
-        <section id="how-it-works" className="py-16 sm:py-24 bg-secondary">
+        <section id="how-it-works" className="py-16 sm:py-24 bg-card/50">
           <div className="container mx-auto px-4 md:px-6">
             <div className="text-center max-w-2xl mx-auto">
               <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl font-headline">How It Works</h2>
               <p className="mt-4 text-lg text-muted-foreground">A simple three-step process to connect surplus food with those in need.</p>
             </div>
-            <div className="mt-16 grid grid-cols-1 gap-12 md:grid-cols-3">
+            <div className="mt-16 grid grid-cols-1 gap-8 md:grid-cols-3">
               {[
-                { step: 1, title: 'Post a Donation', image: howItWorksImages[1] },
-                { step: 2, title: 'Find & Claim', image: howItWorksImages[2] },
-                { step: 3, title: 'Collect & Distribute', image: howItWorksImages[3] },
-              ].map(({ step, title, image }) => (
-                <Card key={step} className="text-center shadow-lg hover:shadow-xl transition-shadow duration-300 transform hover:-translate-y-2 animate-fade-in">
-                  <CardHeader>
+                { step: 1, title: 'Post a Donation', description: "Donors list surplus food with details and photos through a simple form.", image: howItWorksImages[1] },
+                { step: 2, title: 'Find & Claim', description: "Distributors browse available donations on a map and claim them instantly.", image: howItWorksImages[2] },
+                { step: 3, title: 'Collect & Distribute', description: "Distributors pick up the food and deliver it to local communities in need.", image: howItWorksImages[3] },
+              ].map(({ step, title, description, image }) => (
+                <Card key={step} className="text-center shadow-lg hover:shadow-primary/20 transition-shadow duration-300 transform hover:-translate-y-1 animate-fade-in bg-card">
+                  <CardHeader className="p-0">
                     {image && <Image src={image.imageUrl} alt={image.description} width={400} height={300} className="rounded-t-lg aspect-[4/3] object-cover" data-ai-hint={image.imageHint} />}
                   </CardHeader>
                   <CardContent className="p-6">
-                    <div className="text-primary font-bold">Step {step}</div>
+                    <div className="text-primary font-bold tracking-wider uppercase text-sm">Step {step}</div>
                     <h3 className="mt-2 text-xl font-semibold text-foreground">{title}</h3>
+                    <p className="mt-2 text-sm text-muted-foreground">{description}</p>
                   </CardContent>
                 </Card>
               ))}
@@ -121,7 +122,7 @@ export default function Home() {
         </section>
 
         {/* CTA Section */}
-        <section className="bg-secondary py-16 sm:py-24">
+        <section className="bg-card/50 py-16 sm:py-24">
           <div className="container mx-auto px-4 md:px-6 text-center">
             <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl font-headline animate-slide-up">Join the Movement Today</h2>
             <p className="mt-4 text-lg text-muted-foreground max-w-2xl mx-auto animate-slide-up animation-delay-200">
