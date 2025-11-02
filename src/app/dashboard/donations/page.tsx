@@ -1,38 +1,79 @@
-import { getMockUser, mockDonations } from "@/lib/placeholder-data";
+import { redirect } from "next/navigation";
+import { getSession } from "@/lib/auth";
+import {
+	getUserById,
+	getDonationsByDonor,
+	getAvailableDonations,
+} from "@/lib/db";
 import MyDonationsList from "@/components/dashboard/donor/my-donations-list";
 import AvailableDonationsList from "@/components/dashboard/distributor/available-donations-list";
-import type { UserRole } from "@/lib/types";
+import type { Donation } from "@/lib/types";
 
-export default function DonationsPage({ searchParams }: { searchParams: { role: string } }) {
-  // In a real app, you'd get the user from the session.
-  const role = (searchParams.role as UserRole) || 'donor';
-  const user = getMockUser(role);
+export default async function DonationsPage() {
+	// Get the authenticated user from session
+	const session = await getSession();
 
-  if (user.role === 'donor') {
-    const myDonations = mockDonations.filter(d => d.donor.id === user.id);
-    return (
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight font-headline mb-6">My Donations</h1>
-        <MyDonationsList donations={myDonations} />
-      </div>
-    );
-  }
+	if (!session) {
+		redirect("/login");
+	}
 
-  if (user.role === 'distributor') {
-    const availableDonations = mockDonations.filter(d => d.status === 'available');
-    return (
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight font-headline mb-6">Available Donations</h1>
-        <AvailableDonationsList donations={availableDonations} />
-      </div>
-    );
-  }
+	// Fetch full user data from MongoDB
+	let user;
+	try {
+		user = await getUserById(session.id);
+	} catch (error) {
+		console.error("Failed to fetch user from database:", error);
+	}
 
-  // Fallback for admin or other roles
-  return (
-    <div>
-      <h1 className="text-3xl font-bold tracking-tight font-headline">Donations</h1>
-      <p className="text-muted-foreground">You do not have a specific donation view.</p>
-    </div>
-  );
+	if (!user) {
+		redirect("/login");
+	}
+
+	// Fetch donations based on user role
+	let donations: Donation[] = [];
+
+	try {
+		if (user.role === "donor") {
+			donations = await getDonationsByDonor(user.id);
+		} else if (user.role === "distributor") {
+			donations = await getAvailableDonations();
+		}
+	} catch (error) {
+		console.error("Failed to fetch donations from database:", error);
+		donations = [];
+	}
+
+	if (user.role === "donor") {
+		return (
+			<div>
+				<h1 className='text-3xl font-bold tracking-tight font-headline mb-6'>
+					My Donations
+				</h1>
+				<MyDonationsList donations={donations} />
+			</div>
+		);
+	}
+
+	if (user.role === "distributor") {
+		return (
+			<div>
+				<h1 className='text-3xl font-bold tracking-tight font-headline mb-6'>
+					Available Donations
+				</h1>
+				<AvailableDonationsList donations={donations} />
+			</div>
+		);
+	}
+
+	// Fallback for admin or other roles
+	return (
+		<div>
+			<h1 className='text-3xl font-bold tracking-tight font-headline'>
+				Donations
+			</h1>
+			<p className='text-muted-foreground'>
+				You do not have a specific donation view.
+			</p>
+		</div>
+	);
 }

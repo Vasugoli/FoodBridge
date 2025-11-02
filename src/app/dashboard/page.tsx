@@ -1,35 +1,83 @@
-import { getMockUser } from "@/lib/placeholder-data";
+import { redirect } from "next/navigation";
+import { getSession } from "@/lib/auth";
+import {
+	getUserById,
+	getUsersFromDb,
+	getAvailableDonations,
+	getDonationsByDonor,
+	getDonationsFromDb,
+} from "@/lib/db";
 import AdminDashboard from "@/components/dashboard/admin/admin-dashboard";
 import DonorDashboard from "@/components/dashboard/donor/donor-dashboard";
 import DistributorDashboard from "@/components/dashboard/distributor/distributor-dashboard";
-import type { UserRole } from "@/lib/types";
 
-// This component acts as a router to display the correct dashboard
-// based on the user's role.
-export default async function DashboardPage({
-	searchParams,
-}: {
-	searchParams: { role?: string } | Promise<{ role?: string }>;
-}) {
-	// In a real app, you'd get the user from the session, not search params.
-	// This is for demonstration purposes to easily switch between roles.
-	// e.g., /dashboard?role=admin
-	const params = await searchParams;
-	const role = (params?.role as UserRole) || "donor";
-	const user = getMockUser(role);
+// This component displays the correct dashboard based on the authenticated user's role.
+export default async function DashboardPage() {
+	// Get the authenticated user from session
+	const session = await getSession();
 
-	const renderDashboard = () => {
+	if (!session) {
+		redirect("/login");
+	}
+
+	// Fetch full user data from MongoDB
+	let user;
+	try {
+		user = await getUserById(session.id);
+	} catch (error) {
+		console.error("Failed to fetch user from database:", error);
+	}
+
+	if (!user) {
+		redirect("/login");
+	}
+
+	const renderDashboard = async () => {
 		switch (user.role) {
 			case "admin":
-				return <AdminDashboard user={user} />;
+				// Fetch total users count and all donations for admin dashboard
+				let totalUsers = 0;
+				let allDonations: any[] = [];
+				try {
+					const users = await getUsersFromDb();
+					totalUsers = users?.length || 0;
+					allDonations = await getDonationsFromDb();
+				} catch (error) {
+					console.error("Failed to fetch users count:", error);
+				}
+				return (
+					<AdminDashboard
+						user={user}
+						totalUsers={totalUsers}
+						donations={allDonations}
+					/>
+				);
 			case "donor":
-				return <DonorDashboard user={user} />;
+				// Fetch donor's donations
+				let donorDonations: any[] = [];
+				try {
+					donorDonations = await getDonationsByDonor(user.id);
+				} catch (error) {
+					console.error("Failed to fetch donor donations:", error);
+				}
+				return (
+					<DonorDashboard user={user} donations={donorDonations} />
+				);
 			case "distributor":
-				return <DistributorDashboard user={user} />;
+				// Fetch available donations for map
+				let donations: any[] = [];
+				try {
+					donations = await getAvailableDonations();
+				} catch (error) {
+					console.error("Failed to fetch donations:", error);
+				}
+				return (
+					<DistributorDashboard user={user} donations={donations} />
+				);
 			default:
 				return <div>Invalid user role.</div>;
 		}
 	};
 
-	return <div className='h-full'>{renderDashboard()}</div>;
+	return <div className='h-full'>{await renderDashboard()}</div>;
 }

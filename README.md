@@ -51,9 +51,112 @@ npm run build
 npm start
 ```
 
+## MongoDB Setup
+
+This app uses **MongoDB** as its database for users and donations.
+
+### MongoDB Prerequisites
+
+You need a MongoDB instance running. Choose one:
+
+#### Option 1: MongoDB Atlas (Cloud - Recommended for production)
+
+1. Create a free account at [mongodb.com/cloud/atlas](https://www.mongodb.com/cloud/atlas)
+2. Create a cluster and get your connection string
+3. Add your connection string to `.env.local`
+
+#### Option 2: Local MongoDB (Development)
+
+1. Install MongoDB locally: [mongodb.com/try/download/community](https://www.mongodb.com/try/download/community)
+2. Start MongoDB: `mongod` (or `brew services start mongodb-community` on Mac)
+3. Use the local connection string in `.env.local`
+
+### Configuration
+
+1. Create a `.env.local` file in the project root (already created with default):
+
 ```bash
-npm uninstall firebase
+MONGODB_URI=mongodb://localhost:27017/foodbridge
+JWT_SECRET=your-super-secret-jwt-key-change-in-production-min-32-chars
 ```
+
+For MongoDB Atlas, replace with your connection string:
+
+```bash
+MONGODB_URI=mongodb+srv://<username>:<password>@cluster.mongodb.net/foodbridge
+JWT_SECRET=your-super-secret-jwt-key-change-in-production-min-32-chars
+```
+
+**Important**: Change the `JWT_SECRET` to a secure random string in production!
+
+2. Start the development server:
+
+```bash
+npm run dev
+```
+
+## Authentication
+
+FoodBridge now includes a complete authentication system with user signup and login.
+
+### How to Use
+
+1. **Sign Up**: Navigate to `/signup` to create a new account
+   - Enter your name, email, password (min 6 characters)
+   - Select your role: Donor or Distributor
+   - Click "Create Account"
+
+2. **Login**: Navigate to `/login` to sign in
+   - Enter your email and password
+   - Click "Sign In"
+
+3. **Dashboard**: After login, you'll be redirected to `/dashboard`
+   - Your dashboard view depends on your role (Donor, Distributor, or Admin)
+
+4. **Logout**: Click your avatar in the top-right corner and select "Log out"
+
+### Authentication Features
+
+- **Secure Password Hashing**: Passwords are hashed using bcrypt
+- **JWT Sessions**: Session management using JSON Web Tokens
+- **Protected Routes**: Dashboard pages require authentication
+- **Role-Based Access**: Different dashboard views for each user role
+
+### API Routes
+
+Authentication endpoints are available at:
+
+- `POST /api/auth/signup` - Create a new user account
+- `POST /api/auth/login` - Authenticate a user
+- `POST /api/auth/logout` - End user session
+- `GET /api/auth/session` - Get current user session
+
+### Seed Database (Optional)
+
+To populate the database with sample donations for testing:
+
+```bash
+curl -X POST http://localhost:9002/api/seed
+```
+
+**Note**: This only seeds donation data. Users are now created through the signup process.
+
+### Database Structure
+
+- **Database name**: `foodbridge`
+- **Collections**:
+  - `users` - User accounts (donors, distributors, admins)
+  - `donations` - Food donation listings
+
+### Database Helper Functions
+
+Located in `src/lib/db.ts`:
+
+- `getUsersFromDb()` - Fetch all users
+- `getDonationsFromDb()` - Fetch all donations
+- `seedSampleData()` - Seed database with mock data
+
+MongoDB client singleton is in `src/lib/mongodb.ts`.
 
 ## Troubleshooting
 

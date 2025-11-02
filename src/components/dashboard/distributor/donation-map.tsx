@@ -1,52 +1,34 @@
 "use client";
 
-import Image from 'next/image';
-import { Card, CardContent } from '@/components/ui/card';
-import { PlaceHolderImages } from '@/lib/placeholder-images';
+import dynamic from "next/dynamic";
+import { Card, CardContent } from "@/components/ui/card";
+import { mockDonations } from "@/lib/placeholder-data";
+import type { Donation } from "@/lib/types";
 
-/*
-  This is a placeholder for the interactive map.
-  To implement the real map, you would:
-  1. Install Leaflet and React-Leaflet:
-     npm install leaflet react-leaflet
-     npm install -D @types/leaflet
-  2. Import the necessary components and Leaflet's CSS:
-     import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
-     import 'leaflet/dist/leaflet.css';
-  3. Replace the placeholder Image with the MapContainer component.
-  4. Dynamically create Marker components by mapping over donation data.
-  5. Note: Since react-leaflet components can have issues with SSR in Next.js,
-     you might need to dynamically import the map component with ssr: false.
-     e.g., const Map = dynamic(() => import('@/components/map'), { ssr: false });
-*/
+// Dynamically import the Leaflet map to avoid SSR issues
+const LeafletMap = dynamic(() => import("./leaflet-map-direct"), {
+	ssr: false,
+	loading: () => (
+		<div className='h-full w-full flex items-center justify-center bg-muted rounded-lg min-h-[400px]'>
+			<p className='text-muted-foreground'>Loading map...</p>
+		</div>
+	),
+});
 
-export default function DonationMap() {
-  const mapPlaceholder = PlaceHolderImages.find((img) => img.id === 'map-placeholder');
+interface DonationMapProps {
+	donations?: Donation[];
+}
 
-  return (
-    <Card className="h-full w-full shadow-lg">
-      <CardContent className="p-0 h-full relative">
-        {mapPlaceholder ? (
-          <Image
-            src={mapPlaceholder.imageUrl}
-            alt={mapPlaceholder.description}
-            layout="fill"
-            objectFit="cover"
-            className="rounded-lg"
-            data-ai-hint={mapPlaceholder.imageHint}
-          />
-        ) : (
-          <div className="flex items-center justify-center h-full bg-muted rounded-lg">
-            <p className="text-muted-foreground">Map placeholder image not found.</p>
-          </div>
-        )}
-        <div className="absolute inset-0 bg-black/30 rounded-lg flex items-center justify-center">
-            <div className="text-center p-4 bg-background/80 backdrop-blur-sm rounded-lg">
-                <h3 className="text-xl font-bold text-foreground">Interactive Map Coming Soon</h3>
-                <p className="text-muted-foreground">This will be replaced by a live map of donations.</p>
-            </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
+export default function DonationMap({
+	donations = mockDonations,
+}: DonationMapProps) {
+	return (
+		<Card className='h-full w-full shadow-lg'>
+			<CardContent className='p-0 h-full relative'>
+				<div className='h-full min-h-[400px]'>
+					<LeafletMap donations={donations} />
+				</div>
+			</CardContent>
+		</Card>
+	);
 }
