@@ -2,8 +2,16 @@ import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import type { UserSession } from "./types";
 
-const SECRET_KEY =
-	process.env.JWT_SECRET || "your-secret-key-change-in-production";
+// Validate JWT_SECRET is properly configured
+if (!process.env.JWT_SECRET) {
+	throw new Error("JWT_SECRET environment variable is required");
+}
+
+if (process.env.JWT_SECRET.length < 32) {
+	throw new Error("JWT_SECRET must be at least 32 characters long");
+}
+
+const SECRET_KEY = process.env.JWT_SECRET;
 const key = new TextEncoder().encode(SECRET_KEY);
 
 export async function encrypt(payload: UserSession) {

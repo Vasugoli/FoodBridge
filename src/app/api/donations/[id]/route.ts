@@ -9,9 +9,10 @@ const DB_NAME = process.env.MONGODB_DB_NAME || "foodbridge";
 
 export async function PATCH(
 	request: NextRequest,
-	{ params }: { params: { id: string } }
+	{ params }: { params: Promise<{ id: string }> }
 ) {
 	try {
+        const resolvedParams = await params;
 		const session = await getSession();
 		if (!session) {
 			return NextResponse.json(
@@ -28,7 +29,7 @@ export async function PATCH(
 			);
 		}
 
-		const id = params.id;
+		const id = resolvedParams.id;
 		let _id: ObjectId;
 		try {
 			_id = new ObjectId(id);
@@ -90,9 +91,10 @@ export async function PATCH(
 
 export async function DELETE(
 	_request: NextRequest,
-	{ params }: { params: { id: string } }
+	{ params }: { params: Promise<{ id: string }> }
 ) {
 	try {
+        const resolvedParams = await params;
 		const session = await getSession();
 		if (!session) {
 			return NextResponse.json(
@@ -109,7 +111,7 @@ export async function DELETE(
 			);
 		}
 
-		const id = params.id;
+		const id = resolvedParams.id;
 		let _id: ObjectId;
 		try {
 			_id = new ObjectId(id);

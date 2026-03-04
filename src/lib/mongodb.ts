@@ -13,7 +13,8 @@ if (!uri) {
 let client: MongoClient | undefined;
 let clientPromise: Promise<MongoClient> | undefined;
 
-if (!clientPromise) {
+// Only create client if URI is provided
+if (uri && !clientPromise) {
 	client = new MongoClient(uri);
 	clientPromise = client.connect();
 }

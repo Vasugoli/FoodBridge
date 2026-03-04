@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
+import ReviewDialog from "@/components/shared/review-dialog";
 
 const statusVariantMap: {
 	[key in Donation["status"]]:
@@ -203,6 +204,17 @@ export default function MyDonationsList({
 												}>
 												Delete
 											</DropdownMenuItem>
+											{donation.status === "completed" && donation.claimedBy && (
+												<ReviewDialog
+													donationId={donation.id}
+													targetUserId={donation.claimedBy.id}
+													triggerButton={
+														<DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+															Rate Partner
+														</DropdownMenuItem>
+													}
+												/>
+											)}
 										</DropdownMenuContent>
 									</DropdownMenu>
 								</TableCell>

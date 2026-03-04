@@ -1,19 +1,25 @@
 import type { Metadata } from "next";
-import { Poppins } from "next/font/google";
+import { Inter, Plus_Jakarta_Sans } from "next/font/google";
 // @ts-ignore: allow side-effect import of global CSS without explicit type declarations
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 
-const poppins = Poppins({
+const inter = Inter({
 	subsets: ["latin"],
-	weight: ["300", "400", "500", "600", "700"],
-	variable: "--font-sans",
+	variable: "--font-body",
+	display: "swap",
+});
+
+const plusJakartaSans = Plus_Jakarta_Sans({
+	subsets: ["latin"],
+	variable: "--font-headline",
+	display: "swap",
 });
 
 export const metadata: Metadata = {
 	title: "FoodBridge - Saving Food, Serving Lives",
 	description:
-		"Connecting food donators with distributors to fight food waste and hunger.",
+		"Connecting food donors with distributors to fight food waste and hunger through innovative technology.",
 };
 
 export default function RootLayout({
@@ -22,21 +28,12 @@ export default function RootLayout({
 	children: React.ReactNode;
 }>) {
 	return (
-		<html lang='en' suppressHydrationWarning>
-			<head suppressHydrationWarning>
-				<link rel='preconnect' href='https://fonts.googleapis.com' />
-				<link
-					rel='preconnect'
-					href='https://fonts.gstatic.com'
-					crossOrigin='anonymous'
-				/>
-				<link
-					href='https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap'
-					rel='stylesheet'
-				/>
-			</head>
+		<html
+			lang='en'
+			suppressHydrationWarning
+			className={`${inter.variable} ${plusJakartaSans.variable}`}>
 			<body
-				className={`font-body antialiased ${poppins.variable}`}
+				className={`font-body antialiased`}
 				suppressHydrationWarning={true}>
 				{children}
 				<Toaster />

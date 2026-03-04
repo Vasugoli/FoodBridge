@@ -1,49 +1,76 @@
 import { NextResponse } from "next/server";
 import { createUser } from "@/lib/db";
 import { createSession } from "@/lib/auth";
-import type { UserRole } from "@/lib/types";
+import { signupSchema } from "@/lib/validation";
+import {
+	checkRateLimit,
+	signupRateLimiter,
+	getClientIdentifier,
+} from "@/lib/rate-limit";
+import { sendEmail, EmailTemplates } from "@/lib/email";
+import { createEmailVerificationToken } from "@/lib/email-verification";
+import { logError, logInfo, logAudit } from "@/lib/logger";
+import DOMPurify from "isomorphic-dompurify";
 
 export async function POST(request: Request) {
 	try {
+		// Rate limiting
+		const identifier = getClientIdentifier(request);
+		const rateLimit = await checkRateLimit(
+			identifier,
+			signupRateLimiter,
+			3,
+			3600000,
+		);
+
+		if (!rateLimit.success) {
+			logWarning("Rate limit exceeded for signup", { identifier });
+			return NextResponse.json(
+				{ error: "Too many signup attempts. Please try again later." },
+				{ status: 429 },
+			);
+		}
+
 		const body = await request.json();
-		const { name, email, password, role } = body;
 
-		// Validate input
-		if (!name || !email || !password || !role) {
+		// Validate input with Zod
+		const validation = signupSchema.safeParse(body);
+		if (!validation.success) {
 			return NextResponse.json(
-				{ error: "All fields are required" },
-				{ status: 400 }
+				{ error: validation.error.errors[0].message },
+				{ status: 400 },
 			);
 		}
 
-		// Validate email format
-		const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-		if (!emailRegex.test(email)) {
-			return NextResponse.json(
-				{ error: "Invalid email format" },
-				{ status: 400 }
-			);
-		}
+		const { name, email, password, role } = validation.data;
 
-		// Validate password length
-		if (password.length < 6) {
-			return NextResponse.json(
-				{ error: "Password must be at least 6 characters long" },
-				{ status: 400 }
-			);
-		}
-
-		// Validate role
-		const validRoles: UserRole[] = ["donor", "distributor", "admin"];
-		if (!validRoles.includes(role)) {
-			return NextResponse.json(
-				{ error: "Invalid role" },
-				{ status: 400 }
-			);
-		}
+		// Sanitize name to prevent XSS
+		const sanitizedName = DOMPurify.sanitize(name);
 
 		// Create user
-		const user = await createUser(name, email, password, role);
+		const user = await createUser(sanitizedName, email, password, role);
+
+		// Create email verification token
+		const verificationToken = await createEmailVerificationToken(
+			user.id,
+			email,
+		);
+
+		// Send verification email
+		const verificationLink = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:9002"}/verify-email?token=${verificationToken}`;
+		await sendEmail({
+			to: email,
+			...EmailTemplates.emailVerification(
+				sanitizedName,
+				verificationLink,
+			),
+		});
+
+		// Send welcome email
+		await sendEmail({
+			to: email,
+			...EmailTemplates.welcome(sanitizedName),
+		});
 
 		// Create session
 		await createSession({
@@ -52,6 +79,14 @@ export async function POST(request: Request) {
 			email: user.email,
 			role: user.role,
 			avatarUrl: user.avatarUrl,
+		});
+
+		// Audit log
+		logAudit("USER_SIGNUP", user.id, { email, role });
+		logInfo("User signed up successfully", {
+			userId: user.id,
+			email,
+			role,
 		});
 
 		return NextResponse.json({
@@ -63,9 +98,11 @@ export async function POST(request: Request) {
 				role: user.role,
 				avatarUrl: user.avatarUrl,
 			},
+			message:
+				"Account created! Please check your email to verify your account.",
 		});
 	} catch (error: any) {
-		console.error("Signup error:", error);
+		logError("Signup error", error);
 
 		if (error.message === "User with this email already exists") {
 			return NextResponse.json({ error: error.message }, { status: 409 });
@@ -73,7 +110,11 @@ export async function POST(request: Request) {
 
 		return NextResponse.json(
 			{ error: "Failed to create account. Please try again." },
-			{ status: 500 }
+			{ status: 500 },
 		);
 	}
+}
+
+function logWarning(message: string, metadata?: any) {
+	console.warn(message, metadata);
 }

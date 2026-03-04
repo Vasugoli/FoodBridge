@@ -10,9 +10,11 @@ const DB_NAME = "foodbridge";
 export function serializeUser(user: any): SerializableUser {
 	if (!user) return user;
 
-	const { _id, passwordHash, createdAt, ...rest } = user;
+	const { _id, passwordHash, createdAt, trustScore, totalRatings, ...rest } = user;
 	return {
 		...rest,
+		trustScore: trustScore || 0,
+		totalRatings: totalRatings || 0,
 		createdAt:
 			createdAt instanceof Date ? createdAt.toISOString() : createdAt,
 	} as SerializableUser;
@@ -90,6 +92,8 @@ export async function createUser(
 		avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${email}`,
 		createdAt: new Date(),
 		passwordHash,
+		trustScore: 0,
+		totalRatings: 0,
 	};
 
 	// Insert user into database
@@ -182,4 +186,38 @@ export async function seedSampleData() {
 	return {
 		insertedDonations: donationsResult.insertedCount,
 	};
+}
+
+export async function addReview(reviewData: Omit<import("./types").Review, "id" | "createdAt">) {
+	const db = await getDb(DB_NAME);
+
+	const newReview: import("./types").Review = {
+		id: `review-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+		...reviewData,
+		createdAt: new Date(),
+	};
+
+	// Insert the review
+	await db.collection("reviews").insertOne(newReview);
+
+	// Calculate new trust score for the target user
+	const targetUserId = reviewData.targetUserId;
+	const reviews = await db.collection<import("./types").Review>("reviews").find({ targetUserId }).toArray();
+
+	const totalRatings = reviews.length;
+	const sumRatings = reviews.reduce((sum, r) => sum + r.rating, 0);
+	const trustScore = totalRatings > 0 ? sumRatings / totalRatings : 0;
+
+	// Update the user's trustScore and totalRatings
+	await db.collection("users").updateOne(
+		{ id: targetUserId },
+		{
+			$set: {
+				trustScore,
+				totalRatings
+			}
+		}
+	);
+
+	return newReview;
 }

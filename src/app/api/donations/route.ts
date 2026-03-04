@@ -3,6 +3,11 @@ import { getSession } from "@/lib/auth";
 import { getDb } from "@/lib/mongodb";
 import { getUserById } from "@/lib/db";
 import type { Donation } from "@/lib/types";
+import { createDonationSchema } from "@/lib/validation";
+import { checkRateLimit, donationRateLimiter } from "@/lib/rate-limit";
+import { sendEmail, EmailTemplates } from "@/lib/email";
+import { logError, logInfo, logAudit } from "@/lib/logger";
+import DOMPurify from "isomorphic-dompurify";
 
 const DB_NAME = process.env.MONGODB_DB_NAME || "foodbridge";
 
@@ -14,7 +19,22 @@ export async function POST(request: NextRequest) {
 		if (!session) {
 			return NextResponse.json(
 				{ error: "Unauthorized" },
-				{ status: 401 }
+				{ status: 401 },
+			);
+		}
+
+		// Rate limiting per user
+		const rateLimit = await checkRateLimit(
+			`donation:${session.id}`,
+			donationRateLimiter,
+			10,
+			3600000,
+		);
+
+		if (!rateLimit.success) {
+			return NextResponse.json(
+				{ error: "Too many donations posted. Please try again later." },
+				{ status: 429 },
 			);
 		}
 
@@ -24,7 +44,7 @@ export async function POST(request: NextRequest) {
 		if (!user) {
 			return NextResponse.json(
 				{ error: "User not found" },
-				{ status: 404 }
+				{ status: 404 },
 			);
 		}
 
@@ -32,36 +52,43 @@ export async function POST(request: NextRequest) {
 		if (user.role !== "donor") {
 			return NextResponse.json(
 				{ error: "Only donors can create donations" },
-				{ status: 403 }
+				{ status: 403 },
 			);
 		}
 
 		// Parse request body
 		const body = await request.json();
-		const { title, description, quantity, expiry, location, coordinates } =
-			body;
 
-		// Validate required fields (coordinates required, address optional)
-		if (
-			!title ||
-			!description ||
-			!quantity ||
-			!expiry ||
-			!coordinates ||
-			typeof coordinates.lat !== "number" ||
-			typeof coordinates.lng !== "number"
-		) {
+		// Validate with Zod
+		const validation = createDonationSchema.safeParse(body);
+		if (!validation.success) {
 			return NextResponse.json(
-				{ error: "Missing required fields" },
-				{ status: 400 }
+				{ error: validation.error.errors[0].message },
+				{ status: 400 },
 			);
 		}
 
-		// Create donation object
-		const donation: Omit<Donation, "id"> = {
+		const {
 			title,
 			description,
 			quantity,
+			expiry,
+			location,
+			coordinates,
+			imageUrl,
+			imageHint,
+		} = validation.data;
+
+		// Sanitize text inputs
+		const sanitizedTitle = DOMPurify.sanitize(title);
+		const sanitizedDescription = DOMPurify.sanitize(description);
+		const sanitizedQuantity = DOMPurify.sanitize(quantity);
+
+		// Create donation object
+		const donation: Omit<Donation, "id"> = {
+			title: sanitizedTitle,
+			description: sanitizedDescription,
+			quantity: sanitizedQuantity,
 			status: "available",
 			expiry: new Date(expiry),
 			createdAt: new Date(),
@@ -79,27 +106,42 @@ export async function POST(request: NextRequest) {
 				lng: coordinates.lng,
 			},
 			imageUrl:
-				body.imageUrl ||
-				"https://placehold.co/800x450/jpg?text=Donation",
-			imageHint: body.imageHint || "Donation",
+				imageUrl || "https://placehold.co/800x450/jpg?text=Donation",
+			imageHint: imageHint || "Donation",
 		};
 
 		// Insert into database
 		const db = await getDb(DB_NAME);
 		const result = await db.collection("donations").insertOne(donation);
 
+		// Send confirmation email
+		await sendEmail({
+			to: user.email,
+			...EmailTemplates.donationPosted(user.name, sanitizedTitle),
+		});
+
+		// Audit log
+		logAudit("DONATION_CREATED", user.id, {
+			donationId: result.insertedId.toString(),
+			title: sanitizedTitle,
+		});
+		logInfo("Donation created", {
+			userId: user.id,
+			donationId: result.insertedId.toString(),
+		});
+
 		return NextResponse.json(
 			{
 				message: "Donation created successfully",
 				id: result.insertedId.toString(),
 			},
-			{ status: 201 }
+			{ status: 201 },
 		);
 	} catch (error) {
-		console.error("Error creating donation:", error);
+		logError("Error creating donation", error);
 		return NextResponse.json(
 			{ error: "Failed to create donation" },
-			{ status: 500 }
+			{ status: 500 },
 		);
 	}
 }

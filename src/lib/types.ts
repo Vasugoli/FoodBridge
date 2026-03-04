@@ -8,6 +8,10 @@ export interface User {
 	avatarUrl: string;
 	createdAt: Date | string;
 	passwordHash?: string; // Only stored in DB, never sent to client
+	emailVerified?: boolean;
+	emailVerifiedAt?: Date | string;
+	trustScore?: number;
+	totalRatings?: number;
 }
 
 export interface UserSession {
@@ -26,6 +30,10 @@ export interface SerializableUser {
 	role: UserRole;
 	avatarUrl: string;
 	createdAt: string;
+	emailVerified?: boolean;
+	emailVerifiedAt?: string;
+	trustScore?: number;
+	totalRatings?: number;
 }
 
 export type DonationStatus = "available" | "claimed" | "completed" | "expired";
@@ -46,5 +54,16 @@ export interface Donation {
 	status: DonationStatus;
 	donor: User | SerializableUser;
 	claimedBy?: User | SerializableUser;
+	createdAt: Date | string;
+}
+
+export interface Review {
+	id?: string;
+	reviewerId: string;
+	reviewerName: string;
+	targetUserId: string;
+	donationId: string;
+	rating: number; // 1-5
+	comment?: string;
 	createdAt: Date | string;
 }
