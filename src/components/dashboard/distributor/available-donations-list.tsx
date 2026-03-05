@@ -13,17 +13,35 @@ export default function AvailableDonationsList({
 	const { toast } = useToast();
 
 	const handleClaim = async (donation: Donation) => {
+		// Attempt to get user coords for proximity warning (non-blocking)
+		let lat: number | undefined;
+		let lng: number | undefined;
+		try {
+			const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
+				navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 3000 })
+			);
+			lat = pos.coords.latitude;
+			lng = pos.coords.longitude;
+		} catch {
+			// Location unavailable — proceed without proximity check
+		}
+
 		try {
 			const res = await fetch(`/api/donations/${donation.id}/claim`, {
 				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ lat, lng }),
 			});
 			if (!res.ok) {
 				const err = await res.json().catch(() => ({}));
 				throw new Error(err.error || "Failed to claim donation");
 			}
+			const data = await res.json().catch(() => ({}));
 			toast({
-				title: "Claimed",
-				description: "Donation has been claimed.",
+				title: "Claimed!",
+				description: data.proximityWarning
+					? `Donation claimed. Note: ${data.proximityWarning}`
+					: "Donation has been claimed.",
 			});
 			router.refresh();
 		} catch (e) {
@@ -54,6 +72,7 @@ export default function AvailableDonationsList({
 					key={donation.id}
 					donation={donation}
 					onClaim={handleClaim}
+					reportable
 				/>
 			))}
 		</div>

@@ -88,8 +88,20 @@
 }
 
 @layer utilities {
+  .animation-delay-150 {
+    animation-delay: 0.15s;
+  }
+
   .animation-delay-200 {
     animation-delay: 0.2s;
+  }
+
+  .animation-delay-300 {
+    animation-delay: 0.3s;
+  }
+
+  .map-container-height {
+    min-height: 320px;
   }
   .animation-delay-400 {
     animation-delay: 0.4s;

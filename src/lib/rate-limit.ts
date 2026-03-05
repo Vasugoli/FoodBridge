@@ -98,15 +98,12 @@ export async function checkRateLimit(
 	fallbackMax: number = 100,
 	fallbackWindow: number = 3600000, // 1 hour in ms
 ) {
-	// Bypass rate limit in development mode
-	if (process.env.NODE_ENV === "development") {
-		return {
-			success: true,
-			limit: fallbackMax,
-			remaining: fallbackMax,
-			reset: Date.now() + fallbackWindow,
-		};
+	// ── Development bypass ───────────────────────────────────────────────
+	// All rate limits are disabled in development so they don't block testing.
+	if (process.env.NODE_ENV !== "production") {
+		return { success: true, limit: 9999, remaining: 9999, reset: 0 };
 	}
+	// ────────────────────────────────────────────────────────────────────
 
 	if (limiter) {
 		return await limiter.limit(identifier);

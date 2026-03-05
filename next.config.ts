@@ -29,6 +29,8 @@ const nextConfig: NextConfig = {
         pathname: '/**',
       },
     ],
+    // Allow locally uploaded images (served from /public/uploads/)
+    unoptimized: process.env.NODE_ENV !== 'production',
   },
 };
 

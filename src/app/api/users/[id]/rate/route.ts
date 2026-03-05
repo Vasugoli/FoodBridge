@@ -3,8 +3,6 @@ import { getSession } from "@/lib/auth";
 import { addReview } from "@/lib/db";
 import { z } from "zod";
 
-const ratelimit = require("@/lib/rate-limit").rateLimit;
-
 // Schema for rating request body
 const ratingSchema = z.object({
 	donationId: z.string().min(1, "Donation ID is required"),

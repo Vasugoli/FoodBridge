@@ -41,6 +41,9 @@ export const loginSchema = z.object({
 	password: z.string().min(1, "Password is required"),
 });
 
+const FOOD_CATEGORIES = ["cooked_food", "packaged_goods", "produce", "bakery", "dairy", "beverages", "other"] as const;
+const QUANTITY_UNITS = ["meals", "kg", "boxes", "items", "liters", "portions"] as const;
+
 // Donation validation schemas
 export const createDonationSchema = z.object({
 	title: z
@@ -59,6 +62,12 @@ export const createDonationSchema = z.object({
 		.max(50, "Quantity description too long")
 		.trim(),
 	contactNumber: z.string().optional(),
+	category: z.enum(FOOD_CATEGORIES, { required_error: "Category is required" }),
+	quantityValue: z.coerce
+		.number({ invalid_type_error: "Quantity must be a number" })
+		.positive("Quantity must be greater than 0")
+		.max(100000, "Quantity too large"),
+	quantityUnit: z.enum(QUANTITY_UNITS, { required_error: "Unit is required" }),
 	expiry: z.coerce.date().refine((date) => date > new Date(), {
 		message: "Expiry date must be in the future",
 	}),
@@ -67,14 +76,21 @@ export const createDonationSchema = z.object({
 		lng: z.number().min(-180).max(180),
 	}),
 	location: z.string().max(200).optional(),
-	imageUrl: z.string().url().optional(),
+	imageUrl: z.string()
+		.refine(
+			(val) => val.startsWith("/uploads/") || (() => { try { new URL(val); return true; } catch { return false; } })(),
+			{ message: "Invalid image URL" }
+		)
+		.optional(),
 	imageHint: z.string().max(100).optional(),
 });
 
 export const updateDonationSchema = z.object({
 	title: z.string().min(5).max(100).trim().optional(),
 	description: z.string().min(10).max(500).trim().optional(),
-	quantity: z.string().min(1).max(50).trim().optional(),
+	category: z.enum(FOOD_CATEGORIES).optional(),
+	quantityValue: z.coerce.number().positive().max(100000).optional(),
+	quantityUnit: z.enum(QUANTITY_UNITS).optional(),
 	expiry: z.coerce
 		.date()
 		.refine((date) => date > new Date(), {
@@ -97,9 +113,21 @@ export const paginationSchema = z.object({
 	cursor: z.string().optional(),
 });
 
+// Password reset schemas
+export const forgotPasswordSchema = z.object({
+	email: emailSchema,
+});
+
+export const resetPasswordSchema = z.object({
+	token: z.string().min(1, "Reset token is required"),
+	password: passwordSchema,
+});
+
 // Export types
 export type SignupInput = z.infer<typeof signupSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type CreateDonationInput = z.infer<typeof createDonationSchema>;
 export type UpdateDonationInput = z.infer<typeof updateDonationSchema>;
 export type PaginationInput = z.infer<typeof paginationSchema>;
+export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
+export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;

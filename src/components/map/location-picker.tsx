@@ -152,8 +152,8 @@ export default function LocationPicker({
 		<div className={className}>
 			<div
 				ref={containerRef}
-				className='w-full rounded-md border'
-				style={{ minHeight: `${height}px` }}
+				className={`w-full rounded-md border map-container-height`}
+				data-height={height}
 			/>
 			<div className='mt-2 text-sm text-muted-foreground flex items-center justify-between'>
 				<div>

@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { getDb } from "@/lib/mongodb";
 import { getUserById } from "@/lib/db";
-import { ObjectId } from "mongodb";
 import type { Donation } from "@/lib/types";
 
 const DB_NAME = process.env.MONGODB_DB_NAME || "foodbridge";
@@ -30,17 +29,12 @@ export async function PATCH(
 		}
 
 		const id = resolvedParams.id;
-		let query: any;
-		try {
-			query = { $or: [{ _id: new ObjectId(id) }, { id }] };
-		} catch {
-			query = { id };
-		}
+
 
 		const db = await getDb(DB_NAME);
 		const existing = await db
 			.collection<Donation>("donations")
-			.findOne(query);
+			.findOne({ id });
 		if (!existing) {
 			return NextResponse.json(
 				{ error: "Donation not found" },
@@ -55,9 +49,22 @@ export async function PATCH(
 
 		const body = await request.json();
 		const update: any = {};
-		if (body.title) update.title = body.title;
+		if (body.title)       update.title       = body.title;
 		if (body.description) update.description = body.description;
-		if (body.quantity) update.quantity = body.quantity;
+		if (body.category)    update.category    = body.category;
+		if (body.quantityValue != null) {
+			update.quantityValue = body.quantityValue;
+			// Recompute display string if unit is also provided or already exists
+			const unit = body.quantityUnit ?? (existing as any).quantityUnit;
+			if (unit) {
+				update.quantityUnit = unit;
+				update.quantity = `${body.quantityValue} ${unit}`;
+			}
+		} else if (body.quantityUnit) {
+			update.quantityUnit = body.quantityUnit;
+			const val = (existing as any).quantityValue;
+			if (val != null) update.quantity = `${val} ${body.quantityUnit}`;
+		}
 		if (body.expiry) update.expiry = new Date(body.expiry);
 		if (body.location || body.coordinates) {
 			update["location.address"] = body.location ?? "";
@@ -74,7 +81,7 @@ export async function PATCH(
 			);
 		}
 
-		await db.collection("donations").updateOne(query, { $set: update });
+		await db.collection("donations").updateOne({ _id: existing._id }, { $set: update });
 
 		return NextResponse.json({ message: "Donation updated" });
 	} catch (error) {
@@ -109,17 +116,12 @@ export async function DELETE(
 		}
 
 		const id = resolvedParams.id;
-		let query: any;
-		try {
-			query = { $or: [{ _id: new ObjectId(id) }, { id }] };
-		} catch {
-			query = { id };
-		}
+
 
 		const db = await getDb(DB_NAME);
 		const existing = await db
 			.collection<Donation>("donations")
-			.findOne(query);
+			.findOne({ id });
 		if (!existing) {
 			return NextResponse.json(
 				{ error: "Donation not found" },
@@ -132,7 +134,7 @@ export async function DELETE(
 			return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 		}
 
-		await db.collection("donations").deleteOne(query);
+		await db.collection("donations").deleteOne({ _id: existing._id });
 		return NextResponse.json({ message: "Donation deleted" });
 	} catch (error) {
 		console.error("Error deleting donation:", error);

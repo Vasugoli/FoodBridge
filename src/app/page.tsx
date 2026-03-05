@@ -6,8 +6,10 @@ import { PlaceHolderImages } from "@/lib/placeholder-images";
 import { ArrowRight, Users, MapPin, Bell } from "lucide-react";
 import Header from "@/components/layout/header";
 import Footer from "@/components/layout/footer";
+import { getPublicStats } from "@/lib/db";
 
-export default function Home() {
+export default async function Home() {
+	const stats = await getPublicStats().catch(() => ({ estimatedMeals: 0, donorsCount: 0, totalDonations: 0 }));
 	const heroImage = PlaceHolderImages.find((img) => img.id === "hero");
 	const howItWorksImages = {
 		1: PlaceHolderImages.find((img) => img.id === "how-it-works-1"),
@@ -35,6 +37,8 @@ export default function Home() {
 				"Get instant alerts for donation claims, status updates, and new opportunities.",
 		},
 	];
+
+	const featureDelayClass = ['', 'animation-delay-150', 'animation-delay-300'];
 
 	return (
 		<div className='flex min-h-screen flex-col bg-gradient-to-b from-background via-background to-secondary/20'>
@@ -94,7 +98,7 @@ export default function Home() {
 								<div className='grid grid-cols-3 gap-6 pt-8 animate-fade-in animation-delay-600'>
 									<div className='text-center sm:text-left'>
 										<div className='text-3xl font-bold text-primary'>
-											10K+
+											{stats.estimatedMeals > 0 ? `${stats.estimatedMeals.toLocaleString()}+` : "0"}
 										</div>
 										<div className='text-sm text-muted-foreground'>
 											Meals Saved
@@ -102,7 +106,7 @@ export default function Home() {
 									</div>
 									<div className='text-center sm:text-left'>
 										<div className='text-3xl font-bold text-primary'>
-											500+
+											{stats.donorsCount > 0 ? `${stats.donorsCount.toLocaleString()}+` : "0"}
 										</div>
 										<div className='text-sm text-muted-foreground'>
 											Active Donors
@@ -110,10 +114,10 @@ export default function Home() {
 									</div>
 									<div className='text-center sm:text-left'>
 										<div className='text-3xl font-bold text-primary'>
-											50+
+											{stats.totalDonations > 0 ? `${stats.totalDonations.toLocaleString()}+` : "0"}
 										</div>
 										<div className='text-sm text-muted-foreground'>
-											Cities
+											Donations Posted
 										</div>
 									</div>
 								</div>
@@ -254,10 +258,7 @@ export default function Home() {
 							{features.map((feature, index) => (
 								<div
 									key={index}
-									className='group relative flex flex-col items-center text-center p-8 rounded-2xl border-2 border-transparent hover:border-primary/30 bg-gradient-to-br from-white to-gray-50/50 hover:from-primary/5 hover:to-primary/10 transition-all duration-500 hover-lift'
-									style={{
-										animationDelay: `${index * 150}ms`,
-									}}>
+									className={`group relative flex flex-col items-center text-center p-8 rounded-2xl border-2 border-transparent hover:border-primary/30 bg-gradient-to-br from-white to-gray-50/50 hover:from-primary/5 hover:to-primary/10 transition-all duration-500 hover-lift ${featureDelayClass[index] ?? ''}`}>
 									<div className='relative mb-6'>
 										<div className='absolute inset-0 bg-primary/20 rounded-2xl blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500' />
 										<div className='relative flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-emerald-600 text-white shadow-lg group-hover:shadow-glow transition-all duration-500 group-hover:scale-110'>

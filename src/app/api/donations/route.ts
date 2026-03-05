@@ -7,6 +7,8 @@ import { createDonationSchema } from "@/lib/validation";
 import { checkRateLimit, donationRateLimiter } from "@/lib/rate-limit";
 import { sendEmail, EmailTemplates } from "@/lib/email";
 import { logError, logInfo, logAudit } from "@/lib/logger";
+import { sanitizeHtml } from "@/lib/utils";
+import { broadcast } from "@/lib/sse";
 import DOMPurify from "isomorphic-dompurify";
 
 const DB_NAME = process.env.MONGODB_DB_NAME || "foodbridge";
@@ -73,6 +75,9 @@ export async function POST(request: NextRequest) {
 			description,
 			quantity,
 			contactNumber,
+			category,
+			quantityValue,
+			quantityUnit,
 			expiry,
 			location,
 			coordinates,
@@ -81,17 +86,28 @@ export async function POST(request: NextRequest) {
 		} = validation.data;
 
 		// Sanitize text inputs
-		const sanitizedTitle = DOMPurify.sanitize(title);
-		const sanitizedDescription = DOMPurify.sanitize(description);
+		const sanitizedTitle = sanitizeHtml(title);
+		const sanitizedDescription = sanitizeHtml(description);
 		const sanitizedQuantity = DOMPurify.sanitize(quantity);
 		const sanitizedContact = contactNumber ? DOMPurify.sanitize(contactNumber) : undefined;
 
+		// Compute display quantity from structured fields
+		const quantityDisplay = `${quantityValue} ${quantityUnit}`;
+
+		// Generate a stable string ID for the donation document so all
+		// sub-routes (claim, complete, note, report…) can query by { id }
+		const donationId = `donation-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+
 		// Create donation object
-		const donation: Omit<Donation, "id"> = {
+		const donation: Donation = {
+			id: donationId,
 			title: sanitizedTitle,
 			description: sanitizedDescription,
-			quantity: sanitizedQuantity,
+			quantity: quantityDisplay || sanitizedQuantity,
 			contactNumber: sanitizedContact,
+			quantityValue,
+			quantityUnit,
+			category,
 			status: "available",
 			expiry: new Date(expiry),
 			createdAt: new Date(),
@@ -145,19 +161,22 @@ export async function POST(request: NextRequest) {
 
 		// Audit log
 		logAudit("DONATION_CREATED", user.id, {
-			donationId: result.insertedId.toString(),
+			donationId,
 			title: sanitizedTitle,
 		});
-		logInfo("Donation created", {
-			userId: user.id,
-			donationId: result.insertedId.toString(),
-		});
+		logInfo("Donation created", { userId: user.id, donationId });
+
+		// Broadcast real-time event to distributors so their feed refreshes instantly
+		broadcast("new_donation", {
+			donationId,
+			donationTitle: sanitizedTitle,
+			donorName: user.name,
+			category,
+			timestamp: new Date().toISOString(),
+		}, "distributor");
 
 		return NextResponse.json(
-			{
-				message: "Donation created successfully",
-				id: result.insertedId.toString(),
-			},
+			{ message: "Donation created successfully", id: donationId },
 			{ status: 201 },
 		);
 	} catch (error) {
