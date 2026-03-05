@@ -34,8 +34,9 @@ export async function sendEmail(options: EmailOptions) {
 					"FoodBridge <noreply@foodbridge.com>",
 				to: options.to,
 				subject: options.subject,
-				html: options.html,
-				text: options.text,
+				// Resend requires at least one of html/text; spread only defined values
+				...(options.html  ? { html: options.html  } : {}),
+				...(options.text  ? { text: options.text  } : { text: " " }),
 			});
 			return { success: true, id: result.data?.id };
 		} else {
@@ -163,4 +164,79 @@ export const EmailTemplates = {
 			</div>
 		`,
 	}),
-};
+
+  donationExpired: (donorName: string, donationTitle: string) => ({
+    subject: "Your donation has expired",
+    html: `
+			<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+				<h1 style="color: #EF4444;">Donation Expired</h1>
+				<p>Hi ${donorName},</p>
+				<p>Unfortunately, your donation "<strong>${donationTitle}</strong>" has passed its expiry date and has been marked as expired.</p>
+				<p>No distributor claimed it in time. To help reduce food waste, consider:</p>
+				<ul>
+					<li>Posting donations with longer lead times</li>
+					<li>Re-posting with an updated expiry if the food is still safe</li>
+					<li>Contacting local food banks directly for urgent pickups</li>
+				</ul>
+				<p>Thank you for trying to reduce food waste — every donation counts!</p>
+				<hr style="border: 1px solid #e5e7eb; margin: 20px 0;">
+				<p style="color: #6b7280; font-size: 12px;">FoodBridge - Fighting food waste, one meal at a time.</p>
+			</div>
+		`,
+  }),
+
+  donationCompleted: (
+    donorName: string,
+    donationTitle: string,
+    distributorName: string,
+    estimatedMeals: number,
+  ) => ({
+    subject: "Donation completed — thank you!",
+    html: `
+			<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+				<h1 style="color: #10B981;">Donation Completed! 🎉</h1>
+				<p>Hi ${donorName},</p>
+				<p>Amazing news! Your donation "<strong>${donationTitle}</strong>" has been successfully picked up and delivered by <strong>${distributorName}</strong>.</p>
+				<div style="background: #f0fdf4; border-left: 4px solid #10B981; padding: 16px; margin: 20px 0;">
+					<p style="margin: 0; font-weight: bold; color: #065f46;">
+						🍽️ Estimated ~${estimatedMeals} meal(s) saved from waste!
+					</p>
+				</div>
+				<p>Your generosity is making a real difference in your community. Thank you!</p>
+				<hr style="border: 1px solid #e5e7eb; margin: 20px 0;">
+				<p style="color: #6b7280; font-size: 12px;">FoodBridge - Fighting food waste, one meal at a time.</p>
+			</div>
+		`,
+  }),
+
+  expiryAlert: (
+    distributorName: string,
+    donations: { title: string; hoursLeft: number; address: string }[],
+  ) => ({
+    subject: `⚠️ ${donations.length} urgent donation(s) expiring soon!`,
+    html: `
+			<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+				<h1 style="color: #F59E0B;">Urgent Donations Nearby</h1>
+				<p>Hi ${distributorName},</p>
+				<p>The following donations are expiring soon and need a pickup:</p>
+				${donations
+          .map(
+            (d) => `
+					<div style="border: 1px solid #fbbf24; border-radius: 8px; padding: 12px; margin: 10px 0; background: #fffbeb;">
+						<strong>${d.title}</strong><br/>
+						📍 ${d.address}<br/>
+						⏰ <strong style="color: #dc2626;">~${d.hoursLeft}h remaining</strong>
+					</div>`,
+          )
+          .join("")}
+				<div style="text-align: center; margin: 30px 0;">
+					<a href="${process.env.NEXT_PUBLIC_APP_URL}/dashboard/donations"
+					   style="background-color: #F59E0B; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">
+						Claim Now
+					</a>
+				</div>
+				<hr style="border: 1px solid #e5e7eb; margin: 20px 0;">
+				<p style="color: #6b7280; font-size: 12px;">FoodBridge - Fighting food waste, one meal at a time.</p>
+			</div>
+		`,
+  }),};

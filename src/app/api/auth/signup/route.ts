@@ -9,8 +9,8 @@ import {
 } from "@/lib/rate-limit";
 import { sendEmail, EmailTemplates } from "@/lib/email";
 import { createEmailVerificationToken } from "@/lib/email-verification";
-import { logError, logInfo, logAudit } from "@/lib/logger";
-import DOMPurify from "isomorphic-dompurify";
+import { logError, logInfo, logAudit, logWarning } from "@/lib/logger";
+import { sanitizeHtml } from "@/lib/utils";
 
 export async function POST(request: Request) {
 	try {
@@ -45,7 +45,7 @@ export async function POST(request: Request) {
 		const { name, email, password, role } = validation.data;
 
 		// Sanitize name to prevent XSS
-		const sanitizedName = DOMPurify.sanitize(name);
+		const sanitizedName = sanitizeHtml(name);
 
 		// Create user
 		const user = await createUser(sanitizedName, email, password, role);
@@ -115,6 +115,4 @@ export async function POST(request: Request) {
 	}
 }
 
-function logWarning(message: string, metadata?: any) {
-	console.warn(message, metadata);
-}
+

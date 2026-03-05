@@ -129,6 +129,9 @@ export default function MyDonationsList({
 							<TableHead className='hidden md:table-cell'>
 								Expires
 							</TableHead>
+							<TableHead className='hidden lg:table-cell'>
+								Coordination Note
+							</TableHead>
 							<TableHead className='hidden md:table-cell'>
 								Created at
 							</TableHead>
@@ -147,9 +150,12 @@ export default function MyDonationsList({
 										height='64'
 										src={
 											donation.imageUrl &&
-											donation.imageUrl.startsWith("/")
-												? "https://placehold.co/128x128/jpg?text=Donation"
-												: donation.imageUrl
+											(
+												donation.imageUrl.startsWith("/uploads/") ||
+												donation.imageUrl.startsWith("http")
+											)
+												? donation.imageUrl
+												: "https://placehold.co/128x128/jpg?text=Donation"
 										}
 										width='64'
 										data-ai-hint={donation.imageHint}
@@ -171,6 +177,15 @@ export default function MyDonationsList({
 									{formatDistanceToNow(donation.expiry, {
 										addSuffix: true,
 									})}
+								</TableCell>
+								<TableCell className='hidden lg:table-cell max-w-[200px]'>
+									{donation.pickupNote ? (
+										<span className='text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 block truncate' title={donation.pickupNote}>
+											{donation.pickupNote}
+										</span>
+									) : (
+										<span className='text-xs text-muted-foreground italic'>No note</span>
+									)}
 								</TableCell>
 								<TableCell className='hidden md:table-cell'>
 									{format(donation.createdAt, "PP")}

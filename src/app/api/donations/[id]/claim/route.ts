@@ -7,11 +7,12 @@ import type { Donation } from "@/lib/types";
 import { checkRateLimit, claimRateLimiter } from "@/lib/rate-limit";
 import { sendEmail, EmailTemplates } from "@/lib/email";
 import { logError, logInfo, logAudit } from "@/lib/logger";
+import { broadcast } from "@/app/api/events/route";
 
 const DB_NAME = process.env.MONGODB_DB_NAME || "foodbridge";
 
 export async function POST(
-	_request: NextRequest,
+	request: NextRequest,
 	{ params }: { params: Promise<{ id: string }> },
 ) {
 	try {
@@ -23,6 +24,15 @@ export async function POST(
 				{ status: 401 },
 			);
 		}
+
+		// Optional body: { lat?, lng? } for proximity check
+		let bodyLat: number | undefined;
+		let bodyLng: number | undefined;
+		try {
+			const body = await request.json().catch(() => ({}));
+			bodyLat = typeof body.lat === "number" ? body.lat : undefined;
+			bodyLng = typeof body.lng === "number" ? body.lng : undefined;
+		} catch { /* no body is fine */ }
 
 		// Rate limiting per user
 		const rateLimit = await checkRateLimit(
@@ -82,6 +92,19 @@ export async function POST(
 			);
 		}
 
+		// Proximity warning (soft — never blocks the claim)
+		let proximityWarning: string | undefined;
+		if (bodyLat !== undefined && bodyLng !== undefined && donation.location) {
+			const { haversineKm } = await import("@/lib/matching");
+			const distKm = haversineKm(
+				bodyLat, bodyLng,
+				donation.location.lat, donation.location.lng,
+			);
+			if (distKm > 50) {
+				proximityWarning = `This donation is ${Math.round(distKm)} km away — please confirm you can reach it before the expiry.`;
+			}
+		}
+
 		await db.collection("donations").updateOne(
 			{ _id },
 			{
@@ -126,7 +149,15 @@ export async function POST(
 			donationId: resolvedParams.id,
 		});
 
-		return NextResponse.json({ message: "Donation claimed" });
+		// Broadcast real-time event to all SSE subscribers
+		broadcast("donation_claimed", {
+			donationId: donation.id || resolvedParams.id,
+			donationTitle: donation.title,
+			distributorName: user.name,
+			timestamp: new Date().toISOString(),
+		});
+
+		return NextResponse.json({ message: "Donation claimed", proximityWarning });
 	} catch (error) {
 		logError("Error claiming donation", error);
 		return NextResponse.json(

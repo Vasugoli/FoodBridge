@@ -20,14 +20,16 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "@/components/ui/popover";
-import { CalendarIcon, Upload } from "lucide-react";
+import { CalendarIcon, Upload, X, ImageIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import LocationPicker from "@/components/map/location-picker";
+import Image from "next/image";
+import { Progress } from "@/components/ui/progress";
 
 const donationFormSchema = z.object({
 	title: z.string().min(5, "Title must be at least 5 characters."),
@@ -39,7 +41,7 @@ const donationFormSchema = z.object({
 	expiry: z.date({ required_error: "An expiry date is required." }),
 	coordinates: z.object({ lat: z.number(), lng: z.number() }),
 	locationAddress: z.string().optional(),
-	image: z.any().optional(),
+	imageUrl: z.string().optional(),
 });
 
 type DonationFormValues = z.infer<typeof donationFormSchema>;
@@ -55,11 +57,71 @@ export default function DonationForm() {
 	const { toast } = useToast();
 	const router = useRouter();
 	const [isSubmitting, setIsSubmitting] = useState(false);
+	const [imagePreview, setImagePreview] = useState<string | null>(null);
+	const [uploadProgress, setUploadProgress] = useState(0);
+	const [isUploading, setIsUploading] = useState(false);
+	const fileInputRef = useRef<HTMLInputElement>(null);
 
 	const form = useForm<DonationFormValues>({
 		resolver: zodResolver(donationFormSchema),
 		defaultValues,
 	});
+
+	async function handleImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
+		const file = e.target.files?.[0];
+		if (!file) return;
+
+		// Show local preview immediately
+		const reader = new FileReader();
+		reader.onloadend = () => setImagePreview(reader.result as string);
+		reader.readAsDataURL(file);
+
+		// Upload the file
+		setIsUploading(true);
+		setUploadProgress(20);
+
+		try {
+			const formData = new FormData();
+			formData.append("file", file);
+
+			setUploadProgress(50);
+
+			const res = await fetch("/api/upload", {
+				method: "POST",
+				body: formData,
+			});
+
+			setUploadProgress(90);
+
+			if (!res.ok) {
+				const err = await res.json();
+				throw new Error(err.error || "Upload failed");
+			}
+
+			const { url } = await res.json();
+			form.setValue("imageUrl", url);
+			setUploadProgress(100);
+			toast({ title: "Image uploaded", description: "Your photo is ready." });
+		} catch (error) {
+			toast({
+				title: "Upload failed",
+				description: error instanceof Error ? error.message : "Try again",
+				variant: "destructive",
+			});
+			setImagePreview(null);
+			form.setValue("imageUrl", undefined);
+			if (fileInputRef.current) fileInputRef.current.value = "";
+		} finally {
+			setIsUploading(false);
+			setTimeout(() => setUploadProgress(0), 1000);
+		}
+	}
+
+	function removeImage() {
+		setImagePreview(null);
+		form.setValue("imageUrl", undefined);
+		if (fileInputRef.current) fileInputRef.current.value = "";
+	}
 
 	async function onSubmit(data: DonationFormValues) {
 		setIsSubmitting(true);
@@ -67,9 +129,7 @@ export default function DonationForm() {
 		try {
 			const response = await fetch("/api/donations", {
 				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-				},
+				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
 					title: data.title,
 					description: data.description,
@@ -77,6 +137,7 @@ export default function DonationForm() {
 					expiry: data.expiry.toISOString(),
 					location: data.locationAddress,
 					coordinates: data.coordinates,
+					imageUrl: data.imageUrl,
 				}),
 			});
 
@@ -91,8 +152,8 @@ export default function DonationForm() {
 			});
 
 			form.reset();
+			setImagePreview(null);
 
-			// Redirect to dashboard after a short delay
 			setTimeout(() => {
 				router.push("/dashboard");
 				router.refresh();
@@ -238,8 +299,7 @@ export default function DonationForm() {
 									/>
 									<div className='text-sm text-muted-foreground'>
 										Click on the map to select a pickup
-										point. We'll try to fill the address
-										automatically.
+										point.
 									</div>
 								</div>
 							</FormControl>
@@ -261,51 +321,72 @@ export default function DonationForm() {
 								/>
 							</FormControl>
 							<FormDescription>
-								You can refine the address if needed. The map
-								location will be used for pickup.
+								You can refine the address if needed.
 							</FormDescription>
 							<FormMessage />
 						</FormItem>
 					)}
 				/>
 
-				<FormField
-					control={form.control}
-					name='image'
-					render={() => (
-						<FormItem>
-							<FormLabel>Donation Image</FormLabel>
-							<FormControl>
-								<div className='flex items-center justify-center w-full'>
-									<label
-										htmlFor='dropzone-file'
-										className='flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer bg-secondary hover:bg-muted'>
-										<div className='flex flex-col items-center justify-center pt-5 pb-6'>
-											<Upload className='w-8 h-8 mb-3 text-muted-foreground' />
-											<p className='mb-2 text-sm text-muted-foreground'>
-												<span className='font-semibold'>
-													Click to upload
-												</span>{" "}
-												or drag and drop
-											</p>
-											<p className='text-xs text-muted-foreground'>
-												PNG, JPG or GIF (MAX. 800x400px)
-											</p>
-										</div>
-										<Input
-											id='dropzone-file'
-											type='file'
-											className='hidden'
-										/>
-									</label>
-								</div>
-							</FormControl>
-							<FormMessage />
-						</FormItem>
-					)}
-				/>
+				{/* ── Image Upload ─────────────────────────────────── */}
+				<FormItem>
+					<FormLabel>Donation Photo (optional)</FormLabel>
 
-				<Button type='submit' disabled={isSubmitting}>
+					{imagePreview ? (
+						<div className='relative rounded-lg overflow-hidden border-2 border-dashed border-primary/40 bg-secondary'>
+							<Image
+								src={imagePreview}
+								alt='Preview'
+								width={800}
+								height={300}
+								className='w-full h-48 object-cover'
+							/>
+							<button
+								type='button'
+								onClick={removeImage}
+								aria-label='Remove image'
+								className='absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 shadow-lg transition-colors'>
+								<X className='h-4 w-4' />
+							</button>
+							{isUploading && (
+								<div className='absolute bottom-0 left-0 right-0 p-2 bg-black/50'>
+									<Progress value={uploadProgress} className='h-2' />
+								</div>
+							)}
+						</div>
+					) : (
+						<label
+							htmlFor='dropzone-file'
+							className={cn(
+								"flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer bg-secondary transition-colors",
+								isUploading ? "opacity-50 pointer-events-none" : "hover:bg-muted hover:border-primary/40"
+							)}>
+							<div className='flex flex-col items-center justify-center gap-2'>
+								<ImageIcon className='w-8 h-8 text-muted-foreground' />
+								<p className='text-sm text-muted-foreground'>
+									<span className='font-semibold'>Click to upload</span> or drag and drop
+								</p>
+								<p className='text-xs text-muted-foreground'>PNG, JPG, WebP — max 5 MB</p>
+							</div>
+						</label>
+					)}
+
+					<input
+						ref={fileInputRef}
+						id='dropzone-file'
+						type='file'
+						accept='image/jpeg,image/jpg,image/png,image/webp'
+						className='hidden'
+						onChange={handleImageSelect}
+						disabled={isUploading}
+					/>
+
+					{uploadProgress > 0 && uploadProgress < 100 && (
+						<Progress value={uploadProgress} className='h-1 mt-1' />
+					)}
+				</FormItem>
+
+				<Button type='submit' disabled={isSubmitting || isUploading}>
 					{isSubmitting ? "Posting..." : "Post Donation"}
 				</Button>
 			</form>

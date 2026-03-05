@@ -1,0 +1,16 @@
+D:\Temp Practice\FoodBridge\node_modules\.bin\next:2
+basedir=$(dirname "$(echo "$0" | sed -e 's,\\,/,g')")
+          ^^^^^^^
+
+SyntaxError: missing ) after argument list
+    at wrapSafe (node:internal/modules/cjs/loader:1427:18)
+    at Module._compile (node:internal/modules/cjs/loader:1449:20)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1588:10)
+    at Module.load (node:internal/modules/cjs/loader:1282:32)
+    at Module._load (node:internal/modules/cjs/loader:1098:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:315:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:215:24)
+    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:158:5)
+    at node:internal/main/run_main_module:30:49
+
+Node.js v22.5.1

@@ -7,7 +7,8 @@ import { createDonationSchema } from "@/lib/validation";
 import { checkRateLimit, donationRateLimiter } from "@/lib/rate-limit";
 import { sendEmail, EmailTemplates } from "@/lib/email";
 import { logError, logInfo, logAudit } from "@/lib/logger";
-import DOMPurify from "isomorphic-dompurify";
+import { sanitizeHtml } from "@/lib/utils";
+import { broadcast } from "@/app/api/events/route";
 
 const DB_NAME = process.env.MONGODB_DB_NAME || "foodbridge";
 
@@ -80,9 +81,9 @@ export async function POST(request: NextRequest) {
 		} = validation.data;
 
 		// Sanitize text inputs
-		const sanitizedTitle = DOMPurify.sanitize(title);
-		const sanitizedDescription = DOMPurify.sanitize(description);
-		const sanitizedQuantity = DOMPurify.sanitize(quantity);
+		const sanitizedTitle = sanitizeHtml(title);
+		const sanitizedDescription = sanitizeHtml(description);
+		const sanitizedQuantity = sanitizeHtml(quantity);
 
 		// Create donation object
 		const donation: Omit<Donation, "id"> = {
@@ -128,6 +129,13 @@ export async function POST(request: NextRequest) {
 		logInfo("Donation created", {
 			userId: user.id,
 			donationId: result.insertedId.toString(),
+		});
+
+		// Broadcast real-time event so distributors see it immediately
+		broadcast("new_donation", {
+			donationTitle: sanitizedTitle,
+			donorName: user.name,
+			timestamp: new Date().toISOString(),
 		});
 
 		return NextResponse.json(

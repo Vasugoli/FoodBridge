@@ -13,6 +13,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { ShieldCheck, Star } from "lucide-react";
 
 export default async function ProfilePage() {
 	// Get the authenticated user from session
@@ -33,6 +35,22 @@ export default async function ProfilePage() {
 	if (!user) {
 		redirect("/login");
 	}
+
+	const trustScore   = user.trustScore   ?? 0;
+	const ratingAvg    = user.ratingAvg    ?? 0;
+	const ratingCount  = user.totalRatings ?? 0;
+	const isVerified   = user.isVerified   ?? user.emailVerified ?? false;
+
+	// Convert trustScore (0-100) to badge label
+	const trustLabel =
+		trustScore >= 80 ? "Excellent" :
+		trustScore >= 60 ? "Good" :
+		trustScore >= 40 ? "Fair" : "New";
+
+	const trustColor =
+		trustScore >= 80 ? "text-emerald-600" :
+		trustScore >= 60 ? "text-blue-600" :
+		trustScore >= 40 ? "text-yellow-600" : "text-gray-500";
 
 	return (
 		<div className='max-w-2xl mx-auto'>
@@ -58,12 +76,56 @@ export default async function ProfilePage() {
 					</div>
 					<div className='space-y-2'>
 						<Label>Role</Label>
-						<div>
+						<div className='flex items-center gap-2'>
 							<Badge
 								variant='secondary'
 								className='capitalize text-sm'>
 								{user.role}
 							</Badge>
+							{isVerified && (
+								<Badge className='bg-blue-100 text-blue-700 border border-blue-200 gap-1'>
+									<ShieldCheck className='h-3 w-3' />
+									Verified
+								</Badge>
+							)}
+						</div>
+					</div>
+
+					{/* Trust Score */}
+					<div className='space-y-2 pt-2 border-t'>
+						<Label className='text-sm font-medium'>Trust Score</Label>
+						<div className='flex items-center gap-3'>
+							<Progress value={trustScore} className='h-2 flex-1' />
+							<span className={`text-sm font-bold min-w-[3rem] text-right ${trustColor}`}>
+								{trustScore}/100
+							</span>
+							<Badge variant='outline' className={`text-xs ${trustColor} border-current`}>
+								{trustLabel}
+							</Badge>
+						</div>
+					</div>
+
+					{/* Ratings */}
+					<div className='space-y-1'>
+						<Label className='text-sm font-medium'>Rating</Label>
+						<div className='flex items-center gap-2'>
+							<div className='flex items-center gap-0.5'>
+								{[1, 2, 3, 4, 5].map((star) => (
+									<Star
+										key={star}
+										className={`h-4 w-4 ${
+											star <= Math.round(ratingAvg)
+												? "fill-yellow-400 text-yellow-400"
+												: "text-gray-300"
+										}`}
+									/>
+								))}
+							</div>
+							<span className='text-sm text-muted-foreground'>
+								{ratingAvg > 0
+									? `${ratingAvg.toFixed(1)} (${ratingCount} review${ratingCount !== 1 ? "s" : ""})`
+									: "No reviews yet"}
+							</span>
 						</div>
 					</div>
 				</CardContent>
@@ -98,3 +160,4 @@ export default async function ProfilePage() {
 		</div>
 	);
 }
+

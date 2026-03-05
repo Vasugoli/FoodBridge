@@ -66,7 +66,12 @@ export const createDonationSchema = z.object({
 		lng: z.number().min(-180).max(180),
 	}),
 	location: z.string().max(200).optional(),
-	imageUrl: z.string().url().optional(),
+  imageUrl: z.string()
+		.refine(
+			(val) => val.startsWith("/uploads/") || (() => { try { new URL(val); return true; } catch { return false; } })(),
+			{ message: "Invalid image URL" }
+		)
+		.optional(),
 	imageHint: z.string().max(100).optional(),
 });
 

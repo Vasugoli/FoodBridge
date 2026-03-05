@@ -1,7 +1,12 @@
+"use client";
+import { useRouter } from "next/navigation";
 import type { SerializableUser, Donation } from "@/lib/types";
 import DonationMap from "./donation-map";
 import StatCard from "@/components/shared/stat-card";
-import { MapPin, Star, Package, CheckCircle } from "lucide-react";
+import MatchedDonationsList from "./matched-donations-list";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { MapPin, Star, Package, CheckCircle, Zap } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 interface DistributorDashboardProps {
 	user: SerializableUser;
@@ -12,9 +17,30 @@ export default function DistributorDashboard({
 	user,
 	donations = [],
 }: DistributorDashboardProps) {
-	// For demo purposes, we can count the donations that the distributor claimed
-	// (usually passed in as a separate prop, but we'll extract simply for display)
+	const router = useRouter();
+	const { toast } = useToast();
+
 	const availableDonations = donations.filter(d => d.status === "available").length;
+
+	const handleClaim = async (donation: Donation) => {
+		try {
+			const res = await fetch(`/api/donations/${donation.id}/claim`, {
+				method: "POST",
+			});
+			if (!res.ok) {
+				const err = await res.json().catch(() => ({}));
+				throw new Error(err.error || "Failed to claim donation");
+			}
+			toast({ title: "Claimed!", description: "Donation has been claimed." });
+			router.refresh();
+		} catch (e) {
+			toast({
+				title: "Error",
+				description: e instanceof Error ? e.message : "Failed to claim",
+				variant: "destructive",
+			});
+		}
+	};
 
 	return (
 		<div className='space-y-8 h-full flex flex-col'>
@@ -24,7 +50,7 @@ export default function DistributorDashboard({
 						Welcome, {user.name.split(" ")[0]}! 🚚
 					</h1>
 					<p className='text-lg text-muted-foreground'>
-						Explore the map to discover available food donations in your area.
+						Discover and claim food donations in your area.
 					</p>
 				</div>
 			</div>
@@ -50,17 +76,35 @@ export default function DistributorDashboard({
 				/>
 			</div>
 
-			<div className='bg-gradient-to-br from-white to-gray-50/50 rounded-2xl border-2 border-gray-100 p-6 shadow-lg flex-grow min-h-[400px] flex flex-col'>
-				<h2 className='text-2xl font-bold tracking-tight font-headline mb-6 flex items-center gap-3'>
-					<div className='h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center'>
-						<MapPin className='h-6 w-6 text-primary' />
+			<Tabs defaultValue='feed' className='flex-grow flex flex-col'>
+				<TabsList className='grid w-full grid-cols-2 rounded-xl'>
+					<TabsTrigger value='feed' className='gap-2 rounded-lg'>
+						<Zap className='h-4 w-4' />
+						Prioritized Feed
+					</TabsTrigger>
+					<TabsTrigger value='map' className='gap-2 rounded-lg'>
+						<MapPin className='h-4 w-4' />
+						Map View
+					</TabsTrigger>
+				</TabsList>
+
+				<TabsContent value='feed' className='flex-grow mt-6'>
+					<MatchedDonationsList onClaim={handleClaim} />
+				</TabsContent>
+
+				<TabsContent value='map' className='flex-grow mt-6'>
+					<div className='bg-gradient-to-br from-white to-gray-50/50 rounded-2xl border-2 border-gray-100 p-6 shadow-lg min-h-[400px] flex flex-col'>
+						<h2 className='text-xl font-bold mb-4 flex items-center gap-2'>
+							<MapPin className='h-5 w-5 text-primary' />
+							Donations Map
+						</h2>
+						<div className='rounded-xl overflow-hidden border-2 border-gray-200 flex-grow min-h-[350px]'>
+							<DonationMap donations={donations} />
+						</div>
 					</div>
-					Available Donations Map
-				</h2>
-				<div className='rounded-xl overflow-hidden border-2 border-gray-200 flex-grow'>
-					<DonationMap donations={donations} />
-				</div>
-			</div>
+				</TabsContent>
+			</Tabs>
 		</div>
 	);
 }
+

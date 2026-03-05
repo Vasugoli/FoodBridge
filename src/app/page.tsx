@@ -36,6 +36,8 @@ export default function Home() {
 		},
 	];
 
+	const featureDelayClass = ['', 'animation-delay-150', 'animation-delay-300'];
+
 	return (
 		<div className='flex min-h-screen flex-col bg-gradient-to-b from-background via-background to-secondary/20'>
 			<Header />
@@ -254,10 +256,7 @@ export default function Home() {
 							{features.map((feature, index) => (
 								<div
 									key={index}
-									className='group relative flex flex-col items-center text-center p-8 rounded-2xl border-2 border-transparent hover:border-primary/30 bg-gradient-to-br from-white to-gray-50/50 hover:from-primary/5 hover:to-primary/10 transition-all duration-500 hover-lift'
-									style={{
-										animationDelay: `${index * 150}ms`,
-									}}>
+									className={`group relative flex flex-col items-center text-center p-8 rounded-2xl border-2 border-transparent hover:border-primary/30 bg-gradient-to-br from-white to-gray-50/50 hover:from-primary/5 hover:to-primary/10 transition-all duration-500 hover-lift ${featureDelayClass[index] ?? ''}`}>
 									<div className='relative mb-6'>
 										<div className='absolute inset-0 bg-primary/20 rounded-2xl blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500' />
 										<div className='relative flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-emerald-600 text-white shadow-lg group-hover:shadow-glow transition-all duration-500 group-hover:scale-110'>
