@@ -1,5 +1,5 @@
 # FoodBridge — Complete Project Documentation
-### *For Project Expo Presentation — v2.0 (Phase 1 + Phase 2 + Phase 3 Complete)*
+### *For Project Expo Presentation — v3.0 (Phase 1 + Phase 2 + Phase 3 + Phase 4 Complete)*
 
 ---
 
@@ -276,7 +276,7 @@ API Route Handler (route.ts)
     ├─► DOMPurify Sanitization
     ├─► MongoDB Operation (db.ts)
     ├─► Email Notification (email.ts → Resend)
-    ├─► SSE Broadcast (events/route.ts → all connected clients)
+    ├─► SSE Broadcast (lib/sse.ts broadcast() → all connected clients)
     └─► Winston Audit Log
     │
     ▼
@@ -406,12 +406,12 @@ The matching engine ranks available donations so the most at-risk food appears f
 
 **Scoring formula (0–100):**
 
-| Component | Weight | Logic |
-|---|---|---|
-| Expiry urgency | 40% | Critical (≤6h), High (≤24h), Medium (≤72h), Normal |
-| Donor trust score | 30% | Higher-rated donors float to top |
-| Distance | 20% | Closer donations score higher (requires distributor coords) |
-| Listing age | 10% | Older listings prioritized to prevent stagnation |
+| Component | Weight | Points | Breakdown |
+|---|---|---|---|
+| Expiry urgency | 40% | 0–40 | ≤6h = 40pts · ≤24h = 30pts · ≤72h = 20pts · ≤168h = 10pts · else = 5pts |
+| Donor trust score | 30% | 0–30 | `(trustScore / 100) × 30` — higher-rated donors float to top |
+| Distance | 20% | 0–20 | 20pts at ≤2 km, linear scale to 0pts at ≥20 km; **neutral 10pts when no coords supplied** |
+| Listing age | 10% | 0–10 | Older listings gain points to prevent stagnation |
 
 **Urgency badges** (shown on every donation card):
 
@@ -421,6 +421,8 @@ The matching engine ranks available donations so the most at-risk food appears f
 | 🟠 Urgent | Orange | ≤ 24 hours |
 | 🟡 Soon | Yellow | ≤ 72 hours |
 | 🟢 Normal | Green | > 72 hours |
+
+**Distance scoring detail**: Uses the Haversine formula (`haversineKm()` in `src/lib/matching.ts`). Full 20 points at ≤2 km; score decreases linearly to 0 at ≥20 km. When the distributor's browser does not provide geolocation, a neutral score of 10 is used so donations still rank correctly by urgency and trust alone.
 
 **Proximity warning**: When a distributor claims a donation and their browser provides geolocation, the server computes the haversine distance. If it exceeds 50 km a soft warning is returned and shown as a toast — the claim is never blocked.
 
@@ -432,16 +434,38 @@ API: `GET /api/matching?lat=<n>&lng=<n>&limit=<n>` — accessible to distributor
 
 `GET /api/events` provides a persistent SSE stream to all authenticated clients. Whenever a donation status changes, every connected browser receives a push notification and can update its UI without polling.
 
-**Event types broadcast:**
+**Architecture**: The subscriber registry and `broadcast()` function live in `src/lib/sse.ts` — a dedicated module kept separate from the API route file to satisfy Next.js App Router's constraint that route files may only export HTTP handler functions. This allows any server-side module to push events without importing a route file.
 
-| Event | Trigger | Payload |
+```
+src/lib/sse.ts
+  └── subscribers: Map<userId, Set<Subscriber>>   ← in-process registry
+  └── broadcast(eventType, payload, targetRole?)  ← role-filtered push
+
+src/app/api/events/route.ts
+  └── GET handler only — registers subscriber, sends heartbeats, cleans up on disconnect
+```
+
+**Role-aware broadcasting**: The `broadcast()` function accepts an optional `targetRole` parameter. When set, only subscribers with a matching role receive the event — preventing unnecessary traffic to irrelevant clients:
+
+| Event | targetRole | Who receives it |
 |---|---|---|
-| `new_donation` | Donation created or unclaimed (back to available) | `{ donationId }` |
-| `donation_claimed` | Distributor claims a donation | `{ donationId, claimedBy }` |
-| `donation_completed` | Distributor marks pickup complete | `{ donationId, completedAt }` |
-| `donation_expired` | Auto-expire job fires | `{ count, expiredIds }` |
+| `new_donation` | `"distributor"` | Distributor feeds refresh instantly |
+| `donation_claimed` | `"donor"` | Donor sees their listing status change |
+| `donation_completed` | *(all)* | All connected clients update |
+| `donation_expired` | *(all)* | All connected clients update |
 
-In development a module-level Map tracks subscribers. In production this is swappable for Redis Pub/Sub.
+**Connection lifecycle**:
+1. Client connects → server validates JWT session → subscriber registered under `userId`
+2. Server sends `connected` event: `{ userId, role, timestamp }` — client confirms role
+3. Server sends a comment heartbeat (`": heartbeat"`) every **25 seconds** to keep the connection alive through load balancers and proxies
+4. On browser tab close / network drop → `abort` event cleans up the subscriber immediately
+
+**Client hook** (`src/hooks/use-sse.ts`):
+- Listens for all 5 event types: `connected`, `new_donation`, `donation_claimed`, `donation_completed`, `donation_expired`
+- **Exponential backoff reconnection**: on error, initial retry delay is 1 second, doubles on each failure, capped at **30 seconds**
+- Tears down the `EventSource` cleanly on component unmount — no memory leaks
+
+**Production upgrade path**: The in-process `Map` is single-process only. For multi-instance deployments (e.g., multiple Vercel regions) this should be replaced with Redis Pub/Sub; the `broadcast()` signature is unchanged so this swap requires no consumer-side changes.
 
 ---
 
@@ -535,31 +559,53 @@ Distributors who can no longer collect a donation can release it via `POST /api/
 
 ### 8.10 Expiry Alert System
 
-`POST /api/cron/expiry-alerts` is designed to be triggered hourly by any external scheduler (Vercel Cron, GitHub Actions cron, `cron` Linux service):
+`POST /api/cron/expiry-alerts` is designed to be triggered on a schedule. On Vercel it runs automatically via `vercel.json` (committed to the repository). On any other host it can be called from a Linux cron job or CI scheduler.
 
-1. Queries donations that are still `"available"` but expire within **6 hours**
-2. Sends a formatted alert email to **every registered distributor** on the platform
-3. Fire-and-forgets `POST /api/donations/expire` to also immediately mark any already-past donations as `"expired"`
+**What it does (in order):**
+1. Checks authorization: accepts either a `Bearer CRON_SECRET` header **or** an active admin session
+2. Queries all donations with `status = "available"` and `expiry < now + 6 hours`
+3. Builds a per-donation summary: title, address, hours remaining
+4. Sends the formatted alert email to **every registered distributor** on the platform (concurrent `Promise.allSettled` — one failed email does not stop others)
+5. Fire-and-forgets `POST /api/donations/expire` to immediately mark any already-past donations as `"expired"`
+6. Returns `{ donations: N, recipients: sent }` in the response
 
-Auth: Bearer `CRON_SECRET` environment variable OR an active admin session.
+**Vercel Cron schedules** (declared in `vercel.json`):
+
+| Endpoint | Schedule | Action |
+|---|---|---|
+| `/api/cron/expiry-alerts` | Every hour at :00 | Email all distributors about food expiring < 6 h |
+| `/api/donations/expire` | Every 15 minutes | Auto-mark past-due `available` donations as `expired` |
+
+Auth: Bearer `CRON_SECRET` environment variable (recommended) **or** an active admin session (for manual trigger from the admin dashboard).
 
 ---
 
 ### 8.11 Analytics Dashboard
 
-`GET /api/analytics` (admin only, 5-minute CDN cache) returns `ImpactMetrics`:
+`GET /api/analytics` (admin only, 5-minute CDN cache) returns `ImpactMetrics` computed by `getImpactMetrics()` in `src/lib/analytics.ts` using **live MongoDB aggregations** — no static or pre-seeded numbers.
 
-- `totalDonations`, `totalUsers`, `donorsCount`, `distributorsCount`
-- `availableCount`, `claimedCount`, `completedCount`, `expiredCount`
-- `completionRate` and `claimRate` (percentages)
-- `estimatedMealsSaved` — rough calculation from completed donation quantities
-- `estimatedCO2Saved` (kg) — based on industry average waste-to-methane factors
+**Returned metrics:**
+
+| Metric | Type | How Computed |
+|---|---|---|
+| `totalDonations` | Count | All donations in DB |
+| `totalUsers` | Count | All users |
+| `donorsCount` / `distributorsCount` | Count | Filtered by `role` |
+| `availableCount` / `claimedCount` / `completedCount` / `expiredCount` | Count | Filtered by `status` |
+| `completionRate` | % | `completedCount / totalDonations × 100` |
+| `claimRate` | % | `(claimedCount + completedCount) / totalDonations × 100` |
+| `estimatedMealsSaved` | Integer | Sum across completed donations: parses quantity strings ("10 meals" → 10, "5 kg" → 15, "2 boxes" → 16, etc.) |
+| `estimatedCO2Saved` | kg (float) | `estimatedMealsSaved × 0.5` — industry average CO₂ saving per meal redirected from waste |
+| `avgTimeToClaimHours` | Hours | Average midpoint between `createdAt` and `expiry` for claimed/completed donations (approximate) |
+| `trends` | `DonationTrend[6]` | **6-month rolling aggregation** — for each of the last 6 calendar months: total posted, total claimed, total completed |
+
+**Trend chart**: The admin dashboard renders the 6-month trend data as a Recharts bar chart showing posted / claimed / completed volumes side by side, giving a visual overview of platform activity over time.
 
 ---
 
 ### 8.12 Email Notification System
 
-Eight distinct, styled HTML email templates are used throughout the user journey.
+Nine distinct, styled HTML email templates are used throughout the user journey.
 
 ---
 
@@ -613,10 +659,15 @@ Audit events logged:
 
 ```typescript
 {
-  id: string,
+  id: string,               // String ID — format: "donation-{timestamp}-{random}"
+                            //   e.g. "donation-1741148400000-k3f8x2"
+                            //   All sub-routes query by this field, NOT by MongoDB _id
   title: string,
   description: string,
-  quantity: string,         // e.g., "10 meals", "5kg rice"
+  quantity: string,         // Human display string, e.g. "10 meals" or "5 kg"
+  quantityValue: number,    // Structured numeric value (e.g. 10, 5)
+  quantityUnit: string,     // Structured unit (e.g. "meals", "kg", "boxes")
+  category: string,         // Food category (e.g. "cooked_food", "produce", "packaged")
   expiry: Date,             // Urgency indicator
   location: {
     address: string,        // Reverse-geocoded human-readable address
@@ -783,18 +834,19 @@ Falls back to **in-memory rate limiting** when Upstash is not configured.
 
 ## 12. Email & Notification System
 
-All emails are sent via the **Resend** API with custom HTML templates. The system handles graceful fallback to console logging in development, ensuring zero friction setup.
+All emails are sent via the **Resend** API with custom HTML templates (`src/lib/email.ts`). The system handles graceful fallback to console logging in development, ensuring zero friction setup.
 
-| Email | Trigger | Recipient |
-|---|---|---|
-| **Welcome** | User registers | New user |
-| **Email Verification** | Post-signup | New user (24-hour expiry link) |
-| **Donation Posted** | Donation successfully created | Donor |
-| **Donation Claimed — Donor** | Distributor claims | Donor ("your food was claimed!") |
-| **Claim Confirmation** | Distributor claims | Distributor (full details) |
-| **Donation Completed — Donor** | Pickup marked complete | Donor (impact estimate: meals saved, CO₂) |
-| **Expiry Alert** | Cron job fires | All distributors (listing expiring < 6 hours) |
-| **Password Reset** | *(prepared for future use)* | User |
+| # | Template Name | Trigger | Recipient | Notes |
+|---|---|---|---|---|
+| 1 | **Welcome** | User registers | New user | Onboarding message |
+| 2 | **Email Verification** | Post-signup | New user | 24-hour link; user cannot access dashboard until verified |
+| 3 | **Donation Posted** | Donation successfully created | Donor | Confirms listing is live |
+| 4 | **Donation Claimed — Donor** | Distributor claims donation | Donor | "Your food was claimed!" |
+| 5 | **Claim Confirmation** | Distributor claims donation | Distributor | Full pickup address and donor details |
+| 6 | **Donation Completed** | Distributor marks pickup complete | Donor | Includes `~N meals saved` impact estimate |
+| 7 | **Donation Expired** | Auto-expire cron fires | Donor | Notified when their listing expires unclaimed; tips to re-post |
+| 8 | **Expiry Alert** | Hourly cron job (`/api/cron/expiry-alerts`) | All distributors | Lists all donations expiring < 6 h with address + hours remaining + "Claim Now" deep-link |
+| 9 | **Password Reset** | Password reset request | User | 1-hour expiry reset link |
 
 ```
 Signup ─────────────► Welcome Email + Verification Link
@@ -809,10 +861,13 @@ Distributor claims ─┬──► "Your Food Was Claimed!" (to Donor)
                     └──► Claim Details Confirmation (to Distributor)
 
 Distributor completes ──► Impact Email to Donor
-                          ("You helped save ~N meals and ~X kg CO₂!")
+                          ("You helped save ~N meals!")
+
+Auto-expire fires ──────► Donation Expired Email (to Donor)
+                           ("Your listing expired unclaimed; tips to re-post")
 
 Cron (every hour) ──────► Expiry Alert → all Distributors
-                           listing food expiring < 6 hours
+                           (food expiring < 6 hours, with "Claim Now" deep-link)
 ```
 
 ---
@@ -877,6 +932,19 @@ Default center coordinates: Los Angeles, CA (34.0522°N, 118.2437°W) — config
 - [x] Typo route fixed — `/dashboard/cliams` auto-redirects to `/dashboard/claims`
 - [x] Image URL bug fixed — uploaded photos now display correctly in donor table
 
+**Phase 4 — Expo Innovations**
+- [x] **Smart Matching Algorithm** — multi-factor scoring engine: 40% expiry urgency + 30% donor trust + 20% geo-proximity + 10% listing age; scores 0–100 per donation; `GET /api/matching` returns ranked feed
+- [x] **Trust Score Composite Metric** — `(ratingAvg/5 × 100) × 0.60 + (completedDonations/claimedDonations × 100) × 0.40`; auto-recomputed after every review submission; penalises donors/distributors who ghost pickups
+- [x] **SSE Subscriber Registry extracted to `src/lib/sse.ts`** — fixes Next.js App Router route export constraint (TS2344); `broadcast()` now accepts optional `targetRole` for role-gated delivery
+- [x] **Role-aware SSE broadcasting** — `new_donation` pushed only to distributors; `donation_claimed` pushed only to donors; reduces unnecessary client traffic
+- [x] **SSE heartbeat** — 25-second comment heartbeats keep connections alive through load balancers and proxies
+- [x] **Exponential backoff reconnection** (`use-sse.ts`) — on network failure: 1 s → 2 s → 4 s → … capped at 30 s; auto-reconnects on component mount; cleans up on unmount
+- [x] **Proactive Expiry Alerts via Vercel Cron** — `vercel.json` schedules two cron jobs: expiry alerts (hourly) and force-expire (every 15 min); no external scheduler required on Vercel
+- [x] **Proximity Warning (soft enforcement)** — distributor's browser sends `{ lat, lng }` with claim request; server computes haversine distance; if > 50 km returns `proximityWarning` toast — claim is never blocked, preserving food redistribution even when no nearby distributor is available
+- [x] **Analytics with real Carbon / Meal Impact Estimates** — `getImpactMetrics()` in `src/lib/analytics.ts` runs live MongoDB aggregations; estimates meals saved from quantity strings (`"10 meals"`, `"5 kg"`, `"2 boxes"` etc.) and CO₂ from industry waste-to-methane factors; includes `avgTimeToClaimHours` and 6-month trend data
+- [x] **Lifecycle-Aware 9-Template Email System** — dedicated HTML email for every donation state transition: posted → claimed → completed → expired → alert; `donationExpired` notifies donor when listing goes unclaimed; `donationCompleted` includes meals-saved estimate
+- [x] **Donation string ID strategy** — explicit `id: "donation-{timestamp}-{random}"` generated at creation time so all sub-routes (`claim`, `complete`, `note`, `report`) query by `{ id }` string field (not MongoDB `ObjectId`), enabling consistent lookups regardless of MongoDB driver version
+
 ### Roadmap (Planned Features)
 
 | Feature | Purpose |
@@ -909,6 +977,9 @@ JWT_SECRET=<minimum 32 characters>  # Required — app refuses to start without 
 # Email (Optional in development)
 RESEND_API_KEY=<your Resend API key>
 FROM_EMAIL=noreply@yourdomain.com
+
+# App URL (Required for email deep-links, e.g. "Claim Now" button in expiry alert emails)
+NEXT_PUBLIC_APP_URL=https://yoursite.com
 
 # Rate Limiting (Optional — in-memory fallback used if absent)
 UPSTASH_REDIS_REST_URL=<your Upstash URL>
@@ -952,21 +1023,33 @@ npx ts-node src/scripts/create-indexes.ts
 
 ### Cron Job Setup (Expiry Alerts)
 
-To fire expiry alerts automatically once per hour, add a cron entry or use Vercel Cron:
-
-```bash
-# Linux cron (every hour at :00)
-0 * * * * curl -s -X POST https://yoursite.com/api/cron/expiry-alerts \
-  -H "Authorization: Bearer YOUR_CRON_SECRET"
-```
+On **Vercel**, a `vercel.json` file at the project root configures two automatic cron jobs — no external scheduler required:
 
 ```json
-// vercel.json (Vercel Cron)
+// vercel.json (committed to repository)
 {
   "crons": [
-    { "path": "/api/cron/expiry-alerts", "schedule": "0 * * * *" }
+    { "path": "/api/cron/expiry-alerts", "schedule": "0 * * * *" },
+    { "path": "/api/donations/expire",   "schedule": "*/15 * * * *" }
   ]
 }
+```
+
+| Job | Schedule | Purpose |
+|---|---|---|
+| `/api/cron/expiry-alerts` | Every hour at :00 | Emails all distributors about donations expiring < 6 h |
+| `/api/donations/expire` | Every 15 minutes | Marks past-due available donations as `"expired"` |
+
+For **Linux servers** or non-Vercel deployments:
+
+```bash
+# Every hour — expiry alert emails
+0 * * * * curl -s -X POST https://yoursite.com/api/cron/expiry-alerts \
+  -H "Authorization: Bearer YOUR_CRON_SECRET"
+
+# Every 15 minutes — force-expire stale listings
+*/15 * * * * curl -s -X POST https://yoursite.com/api/donations/expire \
+  -H "Authorization: Bearer YOUR_CRON_SECRET"
 ```
 
 ---
@@ -978,9 +1061,10 @@ To fire expiry alerts automatically once per hour, add a cron entry or use Verce
 |---|---|
 | **Project Name** | FoodBridge |
 | **Tagline** | Saving Food, Serving Lives |
+| **Version** | v3.0 (Phase 1 + Phase 2 + Phase 3 + Phase 4 Complete) |
 | **Category** | Social Impact / GreenTech / FoodTech |
 | **Primary SDGs** | SDG 2 (Zero Hunger) + SDG 12 (Responsible Consumption) |
-| **Tech Stack** | Next.js 15, TypeScript, MongoDB, Leaflet, JWT, Resend, SSE |
+| **Tech Stack** | Next.js 15, TypeScript, MongoDB, Leaflet, JWT, Resend, SSE, Vercel Cron |
 | **Target Users** | Food donors · Food distributors (NGOs/food banks) · Platform admins |
 | **Core Problem** | Food waste + hunger coexist due to lack of real-time redistribution infrastructure |
 | **Core Solution** | Role-based platform connecting food surplus to food need via map, smart matching, notifications, and community trust |
@@ -988,4 +1072,4 @@ To fire expiry alerts automatically once per hour, add a cron entry or use Verce
 
 ---
 
-*Documentation updated for project expo — FoodBridge v2.0 (Phase 1 + Phase 2 + Phase 3 Complete)*
+*Documentation updated for project expo — FoodBridge v3.0 (Phase 1 + Phase 2 + Phase 3 + Phase 4 Complete)*
