@@ -1,6 +1,6 @@
 import { getDb } from "./mongodb";
 import { mockDonations } from "./placeholder-data";
-import type { User, Donation, SerializableUser, DonationReport } from "./types";
+import type { User, Donation, SerializableUser, DonationReport, CoordinationMessage } from "./types";
 import bcrypt from "bcryptjs";
 
 const DB_NAME = "foodbridge";
@@ -10,29 +10,41 @@ const DB_NAME = "foodbridge";
 export function serializeUser(user: any): SerializableUser {
 	if (!user) return user;
 
-	const { _id, passwordHash, createdAt, trustScore, totalRatings, ratingAvg, isVerified, ...rest } = user;
+	const { _id, passwordHash, createdAt, trustScore, totalRatings, ratingAvg, isVerified, isSuspended, organizationName, ...rest } = user;
 	return {
 		...rest,
-		trustScore:   trustScore   ?? 0,
-		totalRatings: totalRatings ?? 0,
-		ratingAvg:    ratingAvg    ?? 0,
-		isVerified:   isVerified   ?? false,
-		createdAt:    createdAt instanceof Date ? createdAt.toISOString() : createdAt,
+		trustScore:       trustScore      ?? 0,
+		totalRatings:     totalRatings    ?? 0,
+		ratingAvg:        ratingAvg       ?? 0,
+		isVerified:       isVerified      ?? false,
+		isSuspended:      isSuspended     ?? false,
+		organizationName: organizationName ?? undefined,
+		createdAt:        createdAt instanceof Date ? createdAt.toISOString() : createdAt,
 	} as SerializableUser;
 }
 
 export function serializeDonation(donation: any): Donation {
 	if (!donation) return donation;
 
-	const { _id, createdAt, expiry, donor, completedAt, unclaimedAt, ...rest } = donation;
+	const { _id, createdAt, expiry, donor, completedAt, unclaimedAt, coordinationMessages, ...rest } = donation;
+
+	// Serialize coordination messages: convert any Date createdAt to ISO string
+	const serializedMessages: CoordinationMessage[] | undefined = coordinationMessages
+		? (coordinationMessages as any[]).map((m: any) => ({
+				...m,
+				createdAt: m.createdAt instanceof Date ? m.createdAt.toISOString() : m.createdAt,
+		  }))
+		: undefined;
+
 	return {
 		id: rest.id || _id?.toString() || `donation-${Date.now()}`,
 		...rest,
-		createdAt:   createdAt   instanceof Date ? createdAt.toISOString()   : createdAt,
-		expiry:      expiry      instanceof Date ? expiry.toISOString()      : expiry,
-		completedAt: completedAt instanceof Date ? completedAt.toISOString() : completedAt,
-		unclaimedAt: unclaimedAt instanceof Date ? unclaimedAt.toISOString() : unclaimedAt,
-		donor: donor ? serializeUser(donor) : donor,
+		createdAt:             createdAt   instanceof Date ? createdAt.toISOString()   : createdAt,
+		expiry:                expiry      instanceof Date ? expiry.toISOString()      : expiry,
+		completedAt:           completedAt instanceof Date ? completedAt.toISOString() : completedAt,
+		unclaimedAt:           unclaimedAt instanceof Date ? unclaimedAt.toISOString() : unclaimedAt,
+		donor:                 donor ? serializeUser(donor) : donor,
+		coordinationMessages:  serializedMessages,
 	} as Donation;
 }
 
@@ -149,7 +161,7 @@ export async function getAvailableDonations() {
 	const db = await getDb(DB_NAME);
 	const donations = await db
 		.collection<Donation>("donations")
-		.find({ status: "available" })
+		.find({ status: "available", isHidden: { $ne: true } })
 		.sort({ createdAt: -1 })
 		.toArray();
 	return donations.map(serializeDonation);
@@ -317,10 +329,22 @@ export async function reportDonation(data: Omit<DonationReport, "id" | "createdA
 	await db.collection("reports").insertOne(report);
 
 	// Increment report count on donation
-	await db.collection("donations").updateOne(
+	const updateResult = await db.collection("donations").findOneAndUpdate(
 		{ id: data.donationId },
-		{ $inc: { reportCount: 1 } }
+		{ $inc: { reportCount: 1 } },
+		{ returnDocument: "after" },
 	);
+
+	// Auto-hide when reportCount hits the threshold (3 reports)
+	const REPORT_HIDE_THRESHOLD = 3;
+	const updatedCount: number = (updateResult as any)?.reportCount ?? 0;
+	if (updatedCount >= REPORT_HIDE_THRESHOLD) {
+		await db.collection("donations").updateOne(
+			{ id: data.donationId },
+			{ $set: { isHidden: true } },
+		);
+	}
+
 	return report;
 }
 
@@ -329,5 +353,117 @@ export async function hasReviewed(reviewerId: string, donationId: string): Promi
 	const db = await getDb(DB_NAME);
 	const existing = await db.collection("reviews").findOne({ reviewerId, donationId });
 	return !!existing;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Coordination Message Thread
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Appends a new message to the coordination thread of a donation.
+ * Also updates `pickupNote` with the latest message for backwards compat.
+ */
+export async function addCoordinationMessage(
+	donationId: string,
+	message: CoordinationMessage,
+) {
+	const db = await getDb(DB_NAME);
+	await db.collection("donations").updateOne(
+		{ id: donationId },
+		{
+			$push: { coordinationMessages: message } as any,
+			$set:  { pickupNote: message.message },
+		},
+	);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Admin: Reports Queue
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function getAdminReports() {
+	const db = await getDb(DB_NAME);
+	const reports = await db
+		.collection("reports")
+		.find()
+		.sort({ createdAt: -1 })
+		.toArray();
+
+	return reports.map((r: any) => {
+		const { _id, createdAt, ...rest } = r;
+		return {
+			...rest,
+			createdAt: createdAt instanceof Date ? createdAt.toISOString() : createdAt,
+		};
+	});
+}
+
+/** Admin: unhide a donation that was auto-hidden by reports */
+export async function unhideDonation(donationId: string) {
+	const db = await getDb(DB_NAME);
+	await db.collection("donations").updateOne(
+		{ id: donationId },
+		{ $set: { isHidden: false } },
+	);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Admin: User Management
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Admin: verify or unverify a user (e.g., confirm a distributor is legitimate) */
+export async function setUserVerified(userId: string, verified: boolean) {
+	const db = await getDb(DB_NAME);
+	await db.collection("users").updateOne(
+		{ id: userId },
+		{ $set: { isVerified: verified } },
+	);
+}
+
+/** Admin: suspend or unsuspend a user account */
+export async function setUserSuspended(userId: string, suspended: boolean) {
+	const db = await getDb(DB_NAME);
+	await db.collection("users").updateOne(
+		{ id: userId },
+		{ $set: { isSuspended: suspended } },
+	);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Public Stats (for landing page)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function getPublicStats() {
+	try {
+		const db = await getDb(DB_NAME);
+		const [completedCount, donorsCount, totalDonations] = await Promise.all([
+			db.collection("donations").countDocuments({ status: "completed" }),
+			db.collection("users").countDocuments({ role: "donor" }),
+			db.collection("donations").countDocuments({}),
+		]);
+
+		// Rough meal estimate: each completed donation ≈ 5 meals
+		const estimatedMeals = completedCount * 5;
+
+		return {
+			estimatedMeals,
+			donorsCount,
+			totalDonations,
+		};
+	} catch {
+		// Fallback if DB unreachable during static build
+		return { estimatedMeals: 0, donorsCount: 0, totalDonations: 0 };
+	}
+}
+
+/** Reset a user's password (called after token verification) */
+export async function resetUserPassword(userId: string, newPassword: string) {
+	const db = await getDb(DB_NAME);
+	const saltRounds = process.env.NODE_ENV === "production" ? 12 : 4;
+	const passwordHash = await bcrypt.hash(newPassword, saltRounds);
+	await db.collection("users").updateOne(
+		{ id: userId },
+		{ $set: { passwordHash } },
+	);
 }
 

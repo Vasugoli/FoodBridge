@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { formatDistanceToNow } from "date-fns";
 import type { Donation } from "@/lib/types";
 import DonationCard from "@/components/shared/donation-card";
 import ReviewDialog from "@/components/shared/review-dialog";
@@ -13,6 +14,8 @@ import {
 	DialogDescription,
 	DialogFooter,
 } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { CheckCircle, Loader2, Undo2, MessageSquare, Star } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -23,9 +26,14 @@ export default function ClaimedDonationsList({
 }) {
 	const [donations, setDonations] = useState<Donation[]>(initialDonations);
 	const [loadingId, setLoadingId] = useState<string | null>(null);
-	const [noteState, setNoteState] = useState<{ donationId: string; current: string } | null>(null);
+	const [noteState, setNoteState] = useState<{ donationId: string; newMsg: string } | null>(null);
 	const [savingNote, setSavingNote] = useState(false);
 	const { toast } = useToast();
+
+	// ── Helpers ──────────────────────────────────────────────────────────────
+	function getThread(donation: Donation) {
+		return donation.coordinationMessages ?? [];
+	}
 
 	// ── Mark Complete ────────────────────────────────────────────────────────
 	async function handleComplete(donationId: string) {
@@ -60,28 +68,40 @@ export default function ClaimedDonationsList({
 		}
 	}
 
-	// ── Pickup Note ──────────────────────────────────────────────────────────
-	async function saveNote() {
-		if (!noteState) return;
+	// ── Send Coordination Message ─────────────────────────────────────────────
+	async function sendMessage() {
+		if (!noteState || !noteState.newMsg.trim()) return;
 		setSavingNote(true);
 		try {
 			const res = await fetch(`/api/donations/${noteState.donationId}/note`, {
 				method:  "PATCH",
 				headers: { "Content-Type": "application/json" },
-				body:    JSON.stringify({ note: noteState.current }),
+				body:    JSON.stringify({ message: noteState.newMsg.trim() }),
 			});
 			if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Failed");
+			const { coordination } = await res.json();
 			setDonations((prev) =>
-				prev.map((d) => d.id === noteState.donationId ? { ...d, pickupNote: noteState.current } : d)
+				prev.map((d) => {
+					if (d.id !== noteState.donationId) return d;
+					return {
+						...d,
+						coordinationMessages: [...(d.coordinationMessages ?? []), coordination],
+						pickupNote: coordination.message,
+					};
+				})
 			);
-			toast({ title: "Note saved", description: "The donor can see your coordination note." });
-			setNoteState(null);
+			setNoteState((s) => s ? { ...s, newMsg: "" } : null);
+			toast({ title: "Message sent", description: "Added to coordination thread." });
 		} catch (err) {
-			toast({ title: "Error", description: err instanceof Error ? err.message : "Could not save note", variant: "destructive" });
+			toast({ title: "Error", description: err instanceof Error ? err.message : "Could not send message", variant: "destructive" });
 		} finally {
 			setSavingNote(false);
 		}
 	}
+
+	const activeDonation = noteState
+		? donations.find((d) => d.id === noteState.donationId)
+		: null;
 
 	if (donations.length === 0) {
 		return (
@@ -101,10 +121,10 @@ export default function ClaimedDonationsList({
 					<div key={donation.id} className='flex flex-col gap-2'>
 						<DonationCard donation={donation} />
 
-						{/* Coordination note preview */}
+						{/* Latest note preview */}
 						{donation.pickupNote && (
 							<div className='text-xs bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-amber-800'>
-								<span className='font-semibold'>Note from donor:</span> {donation.pickupNote}
+								<span className='font-semibold'>Latest note:</span> {donation.pickupNote}
 							</div>
 						)}
 
@@ -123,14 +143,19 @@ export default function ClaimedDonationsList({
 									)}
 								</Button>
 
-								{/* Add/Edit note */}
+								{/* Open coordination thread */}
 								<Button
 									variant='outline'
 									size='icon'
-									title='Add coordination note'
-									className='rounded-xl'
-									onClick={() => setNoteState({ donationId: donation.id, current: donation.pickupNote ?? "" })}>
+									title='Coordination thread'
+									className='rounded-xl relative'
+									onClick={() => setNoteState({ donationId: donation.id, newMsg: "" })}>
 									<MessageSquare className='h-4 w-4' />
+									{getThread(donation).length > 0 && (
+										<span className='absolute -top-1 -right-1 bg-amber-500 text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center'>
+											{getThread(donation).length}
+										</span>
+									)}
 								</Button>
 
 								{/* Unclaim */}
@@ -170,30 +195,64 @@ export default function ClaimedDonationsList({
 				))}
 			</div>
 
-			{/* Pickup Note Dialog */}
+			{/* Coordination Thread Dialog */}
 			<Dialog open={!!noteState} onOpenChange={(open) => { if (!open) setNoteState(null); }}>
 				<DialogContent className='sm:max-w-md'>
 					<DialogHeader>
-						<DialogTitle>Pickup Coordination Note</DialogTitle>
+						<DialogTitle>Coordination Thread</DialogTitle>
 						<DialogDescription>
-							Add a short note for the donor (entrance details, timing, contact, etc.).
-							Max 500 characters.
+							Chat with the donor about pickup details, timing, entrance info, etc.
 						</DialogDescription>
 					</DialogHeader>
+
+					{/* Message list */}
+					{getThread(activeDonation!).length === 0 ? (
+						<p className='text-sm text-muted-foreground italic text-center py-4'>
+							No messages yet. Start the conversation below.
+						</p>
+					) : (
+						<ScrollArea className='h-56 rounded-md border bg-muted/30 p-3'>
+							<div className='space-y-3'>
+								{getThread(activeDonation!).map((msg) => (
+									<div key={msg.id} className='flex flex-col gap-0.5'>
+										<div className='flex items-center gap-2'>
+											<span className='text-xs font-semibold'>{msg.authorName}</span>
+											<Badge variant='outline' className='text-[10px] px-1 py-0 capitalize'>
+												{msg.authorRole}
+											</Badge>
+											<span className='text-[10px] text-muted-foreground ml-auto'>
+												{formatDistanceToNow(new Date(msg.createdAt), { addSuffix: true })}
+											</span>
+										</div>
+										<p className='text-sm bg-background rounded px-2 py-1.5 border'>
+											{msg.message}
+										</p>
+									</div>
+								))}
+							</div>
+						</ScrollArea>
+					)}
+
+					{/* New message input */}
 					<Textarea
-						value={noteState?.current ?? ""}
+						value={noteState?.newMsg ?? ""}
 						onChange={(e) =>
-							setNoteState((s) => s ? { ...s, current: e.target.value } : null)
+							setNoteState((s) => s ? { ...s, newMsg: e.target.value } : null)
 						}
-						placeholder='e.g. "Please use the side entrance and ring bell 2B. Available 2–5 PM."'
-						className='min-h-[120px]'
+						placeholder='Type a message… (entrance details, timing, contact info)'
+						className='min-h-[80px]'
 						maxLength={500}
+						onKeyDown={(e) => {
+							if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) sendMessage();
+						}}
 					/>
+					<p className='text-xs text-muted-foreground -mt-1'>Ctrl+Enter to send</p>
+
 					<DialogFooter>
-						<Button variant='outline' onClick={() => setNoteState(null)}>Cancel</Button>
-						<Button onClick={saveNote} disabled={savingNote} className='gap-2'>
+						<Button variant='outline' onClick={() => setNoteState(null)}>Close</Button>
+						<Button onClick={sendMessage} disabled={savingNote || !noteState?.newMsg.trim()} className='gap-2'>
 							{savingNote && <Loader2 className='h-4 w-4 animate-spin' />}
-							Save Note
+							Send Message
 						</Button>
 					</DialogFooter>
 				</DialogContent>

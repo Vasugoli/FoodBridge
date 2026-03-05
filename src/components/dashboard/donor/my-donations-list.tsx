@@ -1,8 +1,10 @@
 "use client";
 import Image from "next/image";
 import { format, formatDistanceToNow } from "date-fns";
-import { MoreHorizontal } from "lucide-react";
-import type { Donation } from "@/lib/types";
+import { MoreHorizontal, Loader2 } from "lucide-react";
+import { useState } from "react";
+import type { Donation, FoodCategory, QuantityUnit } from "@/lib/types";
+import { FOOD_CATEGORY_LABELS, QUANTITY_UNIT_LABELS } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,12 +15,27 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import {
+	Dialog,
+	DialogContent,
+	DialogHeader,
+	DialogTitle,
+	DialogDescription,
+	DialogFooter,
+} from "@/components/ui/dialog";
+import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuLabel,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import {
 	Table,
 	TableBody,
@@ -27,6 +44,9 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import ReviewDialog from "@/components/shared/review-dialog";
@@ -44,6 +64,21 @@ const statusVariantMap: {
 	expired: "destructive",
 };
 
+interface EditState {
+	open: boolean;
+	donation: Donation | null;
+	title: string;
+	description: string;
+	category: string;
+	quantityValue: string;
+	quantityUnit: string;
+}
+
+const emptyEdit: EditState = {
+	open: false, donation: null, title: "", description: "",
+	category: "", quantityValue: "", quantityUnit: "",
+};
+
 export default function MyDonationsList({
 	donations,
 }: {
@@ -51,6 +86,8 @@ export default function MyDonationsList({
 }) {
 	const { toast } = useToast();
 	const router = useRouter();
+	const [editState, setEditState] = useState<EditState>(emptyEdit);
+	const [isSaving, setIsSaving] = useState(false);
 
 	const handleDelete = async (id: string) => {
 		if (!confirm("Delete this donation?")) return;
@@ -77,39 +114,58 @@ export default function MyDonationsList({
 		}
 	};
 
-	const handleEdit = async (donation: Donation) => {
-		const title = prompt("Update title", donation.title);
-		if (title == null) return;
-		const description = prompt(
-			"Update description",
-			donation.description ?? ""
-		);
-		if (description == null) return;
+	function openEdit(donation: Donation) {
+		setEditState({
+			open: true,
+			donation,
+			title: donation.title,
+			description: donation.description ?? "",
+			category: donation.category ?? "",
+			quantityValue: donation.quantityValue?.toString() ?? "",
+			quantityUnit: donation.quantityUnit ?? "",
+		});
+	}
+
+	async function handleSaveEdit() {
+		if (!editState.donation) return;
+		if (!editState.title.trim()) {
+			toast({ title: "Validation", description: "Title is required.", variant: "destructive" });
+			return;
+		}
+		setIsSaving(true);
 		try {
-			const res = await fetch(`/api/donations/${donation.id}`, {
+			const body: Record<string, unknown> = {
+				title: editState.title.trim(),
+				description: editState.description.trim(),
+			};
+			if (editState.category) body.category = editState.category;
+			if (editState.quantityValue) body.quantityValue = Number(editState.quantityValue);
+			if (editState.quantityUnit) body.quantityUnit = editState.quantityUnit;
+
+			const res = await fetch(`/api/donations/${editState.donation.id}`, {
 				method: "PATCH",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ title, description }),
+				body: JSON.stringify(body),
 			});
 			if (!res.ok) {
 				const err = await res.json().catch(() => ({}));
 				throw new Error(err.error || "Failed to update");
 			}
-			toast({
-				title: "Updated",
-				description: "Donation updated successfully.",
-			});
+			toast({ title: "Updated", description: "Donation updated successfully." });
+			setEditState(emptyEdit);
 			router.refresh();
 		} catch (e) {
 			toast({
 				title: "Error",
-				description:
-					e instanceof Error ? e.message : "Failed to update",
+				description: e instanceof Error ? e.message : "Failed to update",
 				variant: "destructive",
 			});
+		} finally {
+			setIsSaving(false);
 		}
-	};
+	}
 	return (
+		<>
 		<Card>
 			<CardHeader>
 				<CardTitle>Your Donations</CardTitle>
@@ -209,7 +265,7 @@ export default function MyDonationsList({
 											</DropdownMenuLabel>
 											<DropdownMenuItem
 												onClick={() =>
-													handleEdit(donation)
+													openEdit(donation)
 												}>
 												Edit
 											</DropdownMenuItem>
@@ -239,5 +295,91 @@ export default function MyDonationsList({
 				</Table>
 			</CardContent>
 		</Card>
+
+		{/* Edit Donation Dialog */}
+		<Dialog open={editState.open} onOpenChange={(open) => { if (!open) setEditState(emptyEdit); }}>
+			<DialogContent className='sm:max-w-lg'>
+				<DialogHeader>
+					<DialogTitle>Edit Donation</DialogTitle>
+					<DialogDescription>
+						Update the details below and save your changes.
+					</DialogDescription>
+				</DialogHeader>
+				<div className='space-y-4 py-2'>
+					<div className='space-y-1'>
+						<Label htmlFor='edit-title'>Title</Label>
+						<Input
+							id='edit-title'
+							value={editState.title}
+							onChange={(e) => setEditState((s) => ({ ...s, title: e.target.value }))}
+							placeholder='Donation title'
+						/>
+					</div>
+					<div className='space-y-1'>
+						<Label htmlFor='edit-desc'>Description</Label>
+						<Textarea
+							id='edit-desc'
+							value={editState.description}
+							onChange={(e) => setEditState((s) => ({ ...s, description: e.target.value }))}
+							placeholder='Describe the donation'
+							rows={3}
+						/>
+					</div>
+					<div className='space-y-1'>
+						<Label>Category</Label>
+						<Select
+							value={editState.category}
+							onValueChange={(v) => setEditState((s) => ({ ...s, category: v }))}
+						>
+							<SelectTrigger className='rounded-lg'>
+								<SelectValue placeholder='Select category…' />
+							</SelectTrigger>
+							<SelectContent>
+								{(Object.keys(FOOD_CATEGORY_LABELS) as FoodCategory[]).map((k) => (
+									<SelectItem key={k} value={k}>{FOOD_CATEGORY_LABELS[k]}</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					</div>
+					<div className='grid grid-cols-2 gap-3'>
+						<div className='space-y-1'>
+							<Label htmlFor='edit-qty'>Quantity</Label>
+							<Input
+								id='edit-qty'
+								type='number'
+								min={1}
+								value={editState.quantityValue}
+								onChange={(e) => setEditState((s) => ({ ...s, quantityValue: e.target.value }))}
+								placeholder='e.g. 10'
+							/>
+						</div>
+						<div className='space-y-1'>
+							<Label>Unit</Label>
+							<Select
+								value={editState.quantityUnit}
+								onValueChange={(v) => setEditState((s) => ({ ...s, quantityUnit: v }))}
+							>
+								<SelectTrigger className='rounded-lg'>
+									<SelectValue placeholder='Unit…' />
+								</SelectTrigger>
+								<SelectContent>
+									{(Object.keys(QUANTITY_UNIT_LABELS) as QuantityUnit[]).map((k) => (
+										<SelectItem key={k} value={k}>{QUANTITY_UNIT_LABELS[k]}</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+					</div>
+				</div>
+				<DialogFooter>
+					<Button variant='outline' onClick={() => setEditState(emptyEdit)}>Cancel</Button>
+					<Button onClick={handleSaveEdit} disabled={isSaving} className='gap-2'>
+						{isSaving && <Loader2 className='h-4 w-4 animate-spin' />}
+						Save Changes
+					</Button>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
+		</>
 	);
 }

@@ -3,6 +3,7 @@ import Image from "next/image";
 import { useState } from "react";
 import { formatDistanceToNow } from "date-fns";
 import type { Donation, MatchedDonation, UrgencyLevel } from "@/lib/types";
+import { FOOD_CATEGORY_LABELS } from "@/lib/types";
 import { urgencyColors, urgencyLabels } from "@/lib/matching";
 import {
 	Card,
@@ -118,8 +119,11 @@ export default function DonationCard({ donation, onClaim, reportable }: Donation
 				<div>
 					<CardTitle className='text-xl font-bold mb-2 group-hover:text-primary transition-colors duration-300 line-clamp-2'>
 						{donation.title}
-					</CardTitle>
-					<p className='text-sm text-muted-foreground leading-relaxed line-clamp-2'>
+					</CardTitle>				{donation.category && (
+					<Badge variant='secondary' className='text-xs mb-1 capitalize'>
+						{FOOD_CATEGORY_LABELS[donation.category] ?? donation.category}
+					</Badge>
+				)}					<p className='text-sm text-muted-foreground leading-relaxed line-clamp-2'>
 						{donation.description}
 					</p>
 				</div>

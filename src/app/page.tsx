@@ -6,8 +6,10 @@ import { PlaceHolderImages } from "@/lib/placeholder-images";
 import { ArrowRight, Users, MapPin, Bell } from "lucide-react";
 import Header from "@/components/layout/header";
 import Footer from "@/components/layout/footer";
+import { getPublicStats } from "@/lib/db";
 
-export default function Home() {
+export default async function Home() {
+	const stats = await getPublicStats().catch(() => ({ estimatedMeals: 0, donorsCount: 0, totalDonations: 0 }));
 	const heroImage = PlaceHolderImages.find((img) => img.id === "hero");
 	const howItWorksImages = {
 		1: PlaceHolderImages.find((img) => img.id === "how-it-works-1"),
@@ -96,7 +98,7 @@ export default function Home() {
 								<div className='grid grid-cols-3 gap-6 pt-8 animate-fade-in animation-delay-600'>
 									<div className='text-center sm:text-left'>
 										<div className='text-3xl font-bold text-primary'>
-											10K+
+											{stats.estimatedMeals > 0 ? `${stats.estimatedMeals.toLocaleString()}+` : "0"}
 										</div>
 										<div className='text-sm text-muted-foreground'>
 											Meals Saved
@@ -104,7 +106,7 @@ export default function Home() {
 									</div>
 									<div className='text-center sm:text-left'>
 										<div className='text-3xl font-bold text-primary'>
-											500+
+											{stats.donorsCount > 0 ? `${stats.donorsCount.toLocaleString()}+` : "0"}
 										</div>
 										<div className='text-sm text-muted-foreground'>
 											Active Donors
@@ -112,10 +114,10 @@ export default function Home() {
 									</div>
 									<div className='text-center sm:text-left'>
 										<div className='text-3xl font-bold text-primary'>
-											50+
+											{stats.totalDonations > 0 ? `${stats.totalDonations.toLocaleString()}+` : "0"}
 										</div>
 										<div className='text-sm text-muted-foreground'>
-											Cities
+											Donations Posted
 										</div>
 									</div>
 								</div>

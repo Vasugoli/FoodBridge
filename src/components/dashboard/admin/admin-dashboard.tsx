@@ -4,7 +4,8 @@ import type { SerializableUser, Donation } from "@/lib/types";
 import StatCard from "@/components/shared/stat-card";
 import DonationMap from "@/components/dashboard/distributor/donation-map";
 import AnalyticsDashboard from "@/components/dashboard/admin/analytics-dashboard";
-import { BarChart3, Users, Package, HandHeart, MapPin, TrendingUp } from "lucide-react";
+import AdminReportsQueue from "@/components/dashboard/admin/reports-queue";
+import { BarChart3, Users, Package, HandHeart, MapPin, TrendingUp, ShieldAlert } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -42,6 +43,9 @@ export default function AdminDashboard({
 					</TabsTrigger>
 					<TabsTrigger value='map' className="flex items-center gap-2">
 						<MapPin className="h-4 w-4" /> Map
+					</TabsTrigger>
+					<TabsTrigger value='reports' className="flex items-center gap-2">
+						<ShieldAlert className="h-4 w-4" /> Reports
 					</TabsTrigger>
 				</TabsList>
 
@@ -109,6 +113,11 @@ export default function AdminDashboard({
 							<DonationMap donations={donations} />
 						</CardContent>
 					</Card>
+				</TabsContent>
+
+				{/* ── Reports tab ──────────────────────────────────── */}
+				<TabsContent value='reports'>
+					<AdminReportsQueue />
 				</TabsContent>
 			</Tabs>
 		</div>

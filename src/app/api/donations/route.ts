@@ -72,7 +72,9 @@ export async function POST(request: NextRequest) {
 		const {
 			title,
 			description,
-			quantity,
+			category,
+			quantityValue,
+			quantityUnit,
 			expiry,
 			location,
 			coordinates,
@@ -83,13 +85,17 @@ export async function POST(request: NextRequest) {
 		// Sanitize text inputs
 		const sanitizedTitle = sanitizeHtml(title);
 		const sanitizedDescription = sanitizeHtml(description);
-		const sanitizedQuantity = sanitizeHtml(quantity);
+		// Compute display quantity from structured fields
+		const quantityDisplay = `${quantityValue} ${quantityUnit}`;
 
 		// Create donation object
 		const donation: Omit<Donation, "id"> = {
 			title: sanitizedTitle,
 			description: sanitizedDescription,
-			quantity: sanitizedQuantity,
+			quantity: quantityDisplay,
+			quantityValue,
+			quantityUnit,
+			category,
 			status: "available",
 			expiry: new Date(expiry),
 			createdAt: new Date(),

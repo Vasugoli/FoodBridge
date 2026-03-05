@@ -58,9 +58,22 @@ export async function PATCH(
 
 		const body = await request.json();
 		const update: any = {};
-		if (body.title) update.title = body.title;
+		if (body.title)       update.title       = body.title;
 		if (body.description) update.description = body.description;
-		if (body.quantity) update.quantity = body.quantity;
+		if (body.category)    update.category    = body.category;
+		if (body.quantityValue != null) {
+			update.quantityValue = body.quantityValue;
+			// Recompute display string if unit is also provided or already exists
+			const unit = body.quantityUnit ?? (existing as any).quantityUnit;
+			if (unit) {
+				update.quantityUnit = unit;
+				update.quantity = `${body.quantityValue} ${unit}`;
+			}
+		} else if (body.quantityUnit) {
+			update.quantityUnit = body.quantityUnit;
+			const val = (existing as any).quantityValue;
+			if (val != null) update.quantity = `${val} ${body.quantityUnit}`;
+		}
 		if (body.expiry) update.expiry = new Date(body.expiry);
 		if (body.location || body.coordinates) {
 			update["location.address"] = body.location ?? "";

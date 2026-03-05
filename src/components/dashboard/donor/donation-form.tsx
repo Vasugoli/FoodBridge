@@ -16,6 +16,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
+import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
@@ -30,14 +37,27 @@ import { useRouter } from "next/navigation";
 import LocationPicker from "@/components/map/location-picker";
 import Image from "next/image";
 import { Progress } from "@/components/ui/progress";
+import { FOOD_CATEGORY_LABELS, QUANTITY_UNIT_LABELS } from "@/lib/types";
+import type { FoodCategory, QuantityUnit } from "@/lib/types";
 
 const donationFormSchema = z.object({
 	title: z.string().min(5, "Title must be at least 5 characters."),
 	description: z
 		.string()
 		.min(10, "Description must be at least 10 characters.")
-		.max(200, "Description must be less than 200 characters."),
-	quantity: z.string().min(1, "Quantity is required."),
+		.max(500, "Description must be less than 500 characters."),
+	category: z.enum(
+		["cooked_food", "packaged_goods", "produce", "bakery", "dairy", "beverages", "other"],
+		{ required_error: "Category is required." },
+	),
+	quantityValue: z.coerce
+		.number({ invalid_type_error: "Enter a number." })
+		.positive("Quantity must be greater than 0.")
+		.max(100000),
+	quantityUnit: z.enum(
+		["meals", "kg", "boxes", "items", "liters", "portions"],
+		{ required_error: "Unit is required." },
+	),
 	expiry: z.date({ required_error: "An expiry date is required." }),
 	coordinates: z.object({ lat: z.number(), lng: z.number() }),
 	locationAddress: z.string().optional(),
@@ -49,7 +69,6 @@ type DonationFormValues = z.infer<typeof donationFormSchema>;
 const defaultValues: Partial<DonationFormValues> = {
 	title: "",
 	description: "",
-	quantity: "",
 	locationAddress: "",
 };
 
@@ -71,26 +90,19 @@ export default function DonationForm() {
 		const file = e.target.files?.[0];
 		if (!file) return;
 
-		// Show local preview immediately
 		const reader = new FileReader();
 		reader.onloadend = () => setImagePreview(reader.result as string);
 		reader.readAsDataURL(file);
 
-		// Upload the file
 		setIsUploading(true);
 		setUploadProgress(20);
 
 		try {
 			const formData = new FormData();
 			formData.append("file", file);
-
 			setUploadProgress(50);
 
-			const res = await fetch("/api/upload", {
-				method: "POST",
-				body: formData,
-			});
-
+			const res = await fetch("/api/upload", { method: "POST", body: formData });
 			setUploadProgress(90);
 
 			if (!res.ok) {
@@ -125,19 +137,20 @@ export default function DonationForm() {
 
 	async function onSubmit(data: DonationFormValues) {
 		setIsSubmitting(true);
-
 		try {
 			const response = await fetch("/api/donations", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
-					title: data.title,
-					description: data.description,
-					quantity: data.quantity,
-					expiry: data.expiry.toISOString(),
-					location: data.locationAddress,
-					coordinates: data.coordinates,
-					imageUrl: data.imageUrl,
+					title:         data.title,
+					description:   data.description,
+					category:      data.category,
+					quantityValue: data.quantityValue,
+					quantityUnit:  data.quantityUnit,
+					expiry:        data.expiry.toISOString(),
+					location:      data.locationAddress,
+					coordinates:   data.coordinates,
+					imageUrl:      data.imageUrl,
 				}),
 			});
 
@@ -146,26 +159,14 @@ export default function DonationForm() {
 				throw new Error(error.error || "Failed to create donation");
 			}
 
-			toast({
-				title: "Donation Posted!",
-				description: "Your donation has been successfully listed.",
-			});
-
+			toast({ title: "Donation Posted!", description: "Your donation has been successfully listed." });
 			form.reset();
 			setImagePreview(null);
-
-			setTimeout(() => {
-				router.push("/dashboard");
-				router.refresh();
-			}, 1000);
+			setTimeout(() => { router.push("/dashboard"); router.refresh(); }, 1000);
 		} catch (error) {
-			console.error("Error creating donation:", error);
 			toast({
 				title: "Error",
-				description:
-					error instanceof Error
-						? error.message
-						: "Failed to create donation. Please try again.",
+				description: error instanceof Error ? error.message : "Failed to create donation. Please try again.",
 				variant: "destructive",
 			});
 		} finally {
@@ -176,6 +177,7 @@ export default function DonationForm() {
 	return (
 		<Form {...form}>
 			<form onSubmit={form.handleSubmit(onSubmit)} className='space-y-8'>
+				{/* Title */}
 				<FormField
 					control={form.control}
 					name='title'
@@ -183,15 +185,14 @@ export default function DonationForm() {
 						<FormItem>
 							<FormLabel>Donation Title</FormLabel>
 							<FormControl>
-								<Input
-									placeholder='e.g., Fresh Bread Loaves'
-									{...field}
-								/>
+								<Input placeholder='e.g., Fresh Bread Loaves' {...field} />
 							</FormControl>
 							<FormMessage />
 						</FormItem>
 					)}
 				/>
+
+				{/* Description */}
 				<FormField
 					control={form.control}
 					name='description'
@@ -199,31 +200,86 @@ export default function DonationForm() {
 						<FormItem>
 							<FormLabel>Description</FormLabel>
 							<FormControl>
-								<Textarea
-									placeholder='Describe the items, condition, and any allergens.'
-									{...field}
-								/>
+								<Textarea placeholder='Describe the items, condition, and any allergens.' {...field} />
 							</FormControl>
 							<FormMessage />
 						</FormItem>
 					)}
 				/>
+
+				{/* Category */}
 				<FormField
 					control={form.control}
-					name='quantity'
+					name='category'
 					render={({ field }) => (
 						<FormItem>
-							<FormLabel>Quantity</FormLabel>
-							<FormControl>
-								<Input
-									placeholder='e.g., 2 boxes, approx. 20 meals'
-									{...field}
-								/>
-							</FormControl>
+							<FormLabel>Food Category</FormLabel>
+							<Select onValueChange={field.onChange} defaultValue={field.value}>
+								<FormControl>
+									<SelectTrigger className='rounded-lg'>
+										<SelectValue placeholder='Select a category…' />
+									</SelectTrigger>
+								</FormControl>
+								<SelectContent>
+									{(Object.keys(FOOD_CATEGORY_LABELS) as FoodCategory[]).map((key) => (
+										<SelectItem key={key} value={key}>
+											{FOOD_CATEGORY_LABELS[key]}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
 							<FormMessage />
 						</FormItem>
 					)}
 				/>
+
+				{/* Quantity — number + unit */}
+				<div className='grid grid-cols-2 gap-4'>
+					<FormField
+						control={form.control}
+						name='quantityValue'
+						render={({ field }) => (
+							<FormItem>
+								<FormLabel>Quantity</FormLabel>
+								<FormControl>
+									<Input
+										type='number'
+										min={1}
+										placeholder='e.g. 10'
+										{...field}
+									/>
+								</FormControl>
+								<FormMessage />
+							</FormItem>
+						)}
+					/>
+					<FormField
+						control={form.control}
+						name='quantityUnit'
+						render={({ field }) => (
+							<FormItem>
+								<FormLabel>Unit</FormLabel>
+								<Select onValueChange={field.onChange} defaultValue={field.value}>
+									<FormControl>
+										<SelectTrigger className='rounded-lg'>
+											<SelectValue placeholder='Select unit…' />
+										</SelectTrigger>
+									</FormControl>
+									<SelectContent>
+										{(Object.keys(QUANTITY_UNIT_LABELS) as QuantityUnit[]).map((key) => (
+											<SelectItem key={key} value={key}>
+												{QUANTITY_UNIT_LABELS[key]}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+								<FormMessage />
+							</FormItem>
+						)}
+					/>
+				</div>
+
+				{/* Expiry */}
 				<FormField
 					control={form.control}
 					name='expiry'
@@ -237,34 +293,21 @@ export default function DonationForm() {
 											variant={"outline"}
 											className={cn(
 												"w-full pl-3 text-left font-normal",
-												!field.value &&
-													"text-muted-foreground"
+												!field.value && "text-muted-foreground"
 											)}>
-											{field.value ? (
-												format(field.value, "PPP")
-											) : (
-												<span>Pick a date</span>
-											)}
+											{field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
 											<CalendarIcon className='ml-auto h-4 w-4 opacity-50' />
 										</Button>
 									</FormControl>
 								</PopoverTrigger>
-								<PopoverContent
-									className='w-auto p-0'
-									align='start'>
+								<PopoverContent className='w-auto p-0' align='start'>
 									<Calendar
 										mode='single'
 										selected={field.value}
 										onSelect={field.onChange}
 										disabled={(date) =>
 											date < new Date() ||
-											date >
-												new Date(
-													new Date().setDate(
-														new Date().getDate() +
-															30
-													)
-												)
+											date > new Date(new Date().setDate(new Date().getDate() + 30))
 										}
 										initialFocus
 									/>
@@ -275,6 +318,7 @@ export default function DonationForm() {
 					)}
 				/>
 
+				{/* Location */}
 				<FormField
 					control={form.control}
 					name='coordinates'
@@ -285,21 +329,12 @@ export default function DonationForm() {
 								<div className='space-y-2'>
 									<LocationPicker
 										onChange={(loc) => {
-											field.onChange({
-												lat: loc.lat,
-												lng: loc.lng,
-											});
-											if (loc.address) {
-												form.setValue(
-													"locationAddress",
-													loc.address
-												);
-											}
+											field.onChange({ lat: loc.lat, lng: loc.lng });
+											if (loc.address) form.setValue("locationAddress", loc.address);
 										}}
 									/>
 									<div className='text-sm text-muted-foreground'>
-										Click on the map to select a pickup
-										point.
+										Click on the map to select a pickup point.
 									</div>
 								</div>
 							</FormControl>
@@ -315,10 +350,7 @@ export default function DonationForm() {
 						<FormItem>
 							<FormLabel>Address (optional)</FormLabel>
 							<FormControl>
-								<Input
-									placeholder='Resolved address'
-									{...field}
-								/>
+								<Input placeholder='Resolved address' {...field} />
 							</FormControl>
 							<FormDescription>
 								You can refine the address if needed.
@@ -328,10 +360,9 @@ export default function DonationForm() {
 					)}
 				/>
 
-				{/* ── Image Upload ─────────────────────────────────── */}
+				{/* Image Upload */}
 				<FormItem>
 					<FormLabel>Donation Photo (optional)</FormLabel>
-
 					{imagePreview ? (
 						<div className='relative rounded-lg overflow-hidden border-2 border-dashed border-primary/40 bg-secondary'>
 							<Image
@@ -378,16 +409,11 @@ export default function DonationForm() {
 						accept='image/jpeg,image/jpg,image/png,image/webp'
 						className='hidden'
 						onChange={handleImageSelect}
-						disabled={isUploading}
 					/>
-
-					{uploadProgress > 0 && uploadProgress < 100 && (
-						<Progress value={uploadProgress} className='h-1 mt-1' />
-					)}
 				</FormItem>
 
-				<Button type='submit' disabled={isSubmitting || isUploading}>
-					{isSubmitting ? "Posting..." : "Post Donation"}
+				<Button type='submit' className='w-full' disabled={isSubmitting || isUploading}>
+					{isSubmitting ? "Posting…" : "Post Donation"}
 				</Button>
 			</form>
 		</Form>
