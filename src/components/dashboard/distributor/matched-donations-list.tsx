@@ -31,7 +31,7 @@ export default function MatchedDonationsList({ onClaim }: MatchedDonationsListPr
 				const res = await fetch(`/api/matching?${params}`);
 				if (!res.ok) throw new Error("Failed to fetch matched donations");
 				const data = await res.json();
-				setDonations(data.donations ?? []);
+				setDonations(data.data ?? []);
 			} catch (err) {
 				toast({
 					title: "Error",

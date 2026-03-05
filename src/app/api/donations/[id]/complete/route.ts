@@ -15,11 +15,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { getDb } from "@/lib/mongodb";
 import { getUserById } from "@/lib/db";
-import { ObjectId } from "mongodb";
 import type { Donation } from "@/lib/types";
 import { sendEmail, EmailTemplates } from "@/lib/email";
 import { logError, logAudit } from "@/lib/logger";
-import { broadcast } from "@/app/api/events/route";
+import { broadcast } from "@/lib/sse";
 
 const DB_NAME = process.env.MONGODB_DB_NAME || "foodbridge";
 
@@ -51,17 +50,10 @@ export async function POST(
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    let _id: ObjectId;
-    try {
-      _id = new ObjectId(resolvedParams.id);
-    } catch {
-      return NextResponse.json({ error: "Invalid donation id" }, { status: 400 });
-    }
-
     const db = await getDb(DB_NAME);
     const donation = await db
       .collection<Donation>("donations")
-      .findOne({ _id });
+      .findOne({ id: resolvedParams.id });
 
     if (!donation) {
       return NextResponse.json({ error: "Donation not found" }, { status: 404 });
@@ -82,7 +74,7 @@ export async function POST(
     }
 
     await db.collection("donations").updateOne(
-      { _id },
+      { id: resolvedParams.id },
       { $set: { status: "completed", completedAt: new Date() } },
     );
 

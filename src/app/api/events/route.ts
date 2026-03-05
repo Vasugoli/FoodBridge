@@ -17,28 +17,7 @@
 
 import { NextRequest } from "next/server";
 import { getSession } from "@/lib/auth";
-
-// ── In-process subscriber registry ──────────────────────────────────────────
-// Maps userId → Set of controller send-functions
-type Sender = (event: string, data: object) => void;
-const subscribers = new Map<string, Set<Sender>>();
-
-export function broadcast(
-  eventType: string,
-  payload: object,
-  targetRole?: "donor" | "distributor" | "admin" | "all",
-) {
-  // If no targeting, push to everyone
-  subscribers.forEach((senders) => {
-    senders.forEach((send) => {
-      try {
-        send(eventType, payload);
-      } catch {
-        // connection may already be closed; ignore
-      }
-    });
-  });
-}
+import { subscribers, type Subscriber } from "@/lib/sse";
 
 // ── SSE route ────────────────────────────────────────────────────────────────
 
@@ -57,20 +36,21 @@ export async function GET(request: NextRequest) {
       const encoder = new TextEncoder();
 
       // Helper: write a named SSE event
-      const send: Sender = (event, data) => {
+      const send = (event: string, data: object) => {
         const msg =
           `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
         controller.enqueue(encoder.encode(msg));
       };
 
       // Register subscriber
+      const subscriber: Subscriber = { role: session.role, send };
       if (!subscribers.has(userId)) {
         subscribers.set(userId, new Set());
       }
-      subscribers.get(userId)!.add(send);
+      subscribers.get(userId)!.add(subscriber);
 
-      // Send initial "connected" event
-      send("connected", { userId, timestamp: new Date().toISOString() });
+      // Send initial "connected" event with role info
+      send("connected", { userId, role: session.role, timestamp: new Date().toISOString() });
 
       // Heartbeat every 25 s to keep the connection alive through proxies
       const heartbeat = setInterval(() => {
@@ -84,7 +64,7 @@ export async function GET(request: NextRequest) {
       // Cleanup on disconnect
       request.signal.addEventListener("abort", () => {
         clearInterval(heartbeat);
-        subscribers.get(userId)?.delete(send);
+        subscribers.get(userId)?.delete(subscriber);
         if (subscribers.get(userId)?.size === 0) {
           subscribers.delete(userId);
         }

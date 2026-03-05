@@ -2,12 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { getDb } from "@/lib/mongodb";
 import { getUserById } from "@/lib/db";
-import { ObjectId } from "mongodb";
 import type { Donation } from "@/lib/types";
 import { checkRateLimit, claimRateLimiter } from "@/lib/rate-limit";
 import { sendEmail, EmailTemplates } from "@/lib/email";
 import { logError, logInfo, logAudit } from "@/lib/logger";
-import { broadcast } from "@/app/api/events/route";
+import { broadcast } from "@/lib/sse";
 
 const DB_NAME = process.env.MONGODB_DB_NAME || "foodbridge";
 
@@ -64,20 +63,10 @@ export async function POST(
 			);
 		}
 
-		let _id: ObjectId;
-		try {
-			_id = new ObjectId(resolvedParams.id);
-		} catch {
-			return NextResponse.json(
-				{ error: "Invalid donation id" },
-				{ status: 400 },
-			);
-		}
-
 		const db = await getDb(DB_NAME);
 		const donation = await db
 			.collection<Donation>("donations")
-			.findOne({ _id });
+			.findOne({ id: resolvedParams.id });
 		if (!donation) {
 			return NextResponse.json(
 				{ error: "Donation not found" },
@@ -106,7 +95,7 @@ export async function POST(
 		}
 
 		await db.collection("donations").updateOne(
-			{ _id },
+			{ id: resolvedParams.id, status: "available" },
 			{
 				$set: {
 					status: "claimed",

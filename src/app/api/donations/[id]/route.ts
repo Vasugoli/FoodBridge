@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { getDb } from "@/lib/mongodb";
 import { getUserById } from "@/lib/db";
-import { ObjectId } from "mongodb";
 import type { Donation } from "@/lib/types";
 
 const DB_NAME = process.env.MONGODB_DB_NAME || "foodbridge";
@@ -30,20 +29,11 @@ export async function PATCH(
 		}
 
 		const id = resolvedParams.id;
-		let _id: ObjectId;
-		try {
-			_id = new ObjectId(id);
-		} catch {
-			return NextResponse.json(
-				{ error: "Invalid donation id" },
-				{ status: 400 }
-			);
-		}
 
 		const db = await getDb(DB_NAME);
 		const existing = await db
 			.collection<Donation>("donations")
-			.findOne({ _id });
+			.findOne({ id });
 		if (!existing) {
 			return NextResponse.json(
 				{ error: "Donation not found" },
@@ -90,7 +80,7 @@ export async function PATCH(
 			);
 		}
 
-		await db.collection("donations").updateOne({ _id }, { $set: update });
+		await db.collection("donations").updateOne({ _id: existing._id }, { $set: update });
 
 		return NextResponse.json({ message: "Donation updated" });
 	} catch (error) {
@@ -125,20 +115,11 @@ export async function DELETE(
 		}
 
 		const id = resolvedParams.id;
-		let _id: ObjectId;
-		try {
-			_id = new ObjectId(id);
-		} catch {
-			return NextResponse.json(
-				{ error: "Invalid donation id" },
-				{ status: 400 }
-			);
-		}
 
 		const db = await getDb(DB_NAME);
 		const existing = await db
 			.collection<Donation>("donations")
-			.findOne({ _id });
+			.findOne({ id });
 		if (!existing) {
 			return NextResponse.json(
 				{ error: "Donation not found" },
@@ -151,7 +132,7 @@ export async function DELETE(
 			return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 		}
 
-		await db.collection("donations").deleteOne({ _id });
+		await db.collection("donations").deleteOne({ _id: existing._id });
 		return NextResponse.json({ message: "Donation deleted" });
 	} catch (error) {
 		console.error("Error deleting donation:", error);

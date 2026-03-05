@@ -10,7 +10,7 @@ import { getSession } from "@/lib/auth";
 import { getUserById, unclaimDonation } from "@/lib/db";
 import { getDb } from "@/lib/mongodb";
 import type { Donation } from "@/lib/types";
-import { broadcast } from "@/app/api/events/route";
+import { broadcast } from "@/lib/sse";
 import { logAudit, logError } from "@/lib/logger";
 
 const DB_NAME = process.env.MONGODB_DB_NAME || "foodbridge";

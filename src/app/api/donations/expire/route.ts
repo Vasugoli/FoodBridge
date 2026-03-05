@@ -16,7 +16,7 @@ import { getUserById } from "@/lib/db";
 import { getDb } from "@/lib/mongodb";
 import { sendEmail, EmailTemplates } from "@/lib/email";
 import { logInfo, logError, logAudit } from "@/lib/logger";
-import { broadcast } from "@/app/api/events/route";
+import { broadcast } from "@/lib/sse";
 
 const DB_NAME = process.env.MONGODB_DB_NAME || "foodbridge";
 

@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/expiry-alerts",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/donations/expire",
+      "schedule": "*/15 * * * *"
+    }
+  ]
+}

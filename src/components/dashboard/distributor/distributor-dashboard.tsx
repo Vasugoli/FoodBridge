@@ -23,9 +23,24 @@ export default function DistributorDashboard({
 	const availableDonations = donations.filter(d => d.status === "available").length;
 
 	const handleClaim = async (donation: Donation) => {
+		// Try to get the user's location for proximity check (soft — never blocks)
+		let lat: number | undefined;
+		let lng: number | undefined;
+		try {
+			const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+				navigator.geolocation?.getCurrentPosition(resolve, reject, { timeout: 3000 });
+			});
+			lat = position.coords.latitude;
+			lng = position.coords.longitude;
+		} catch {
+			// location denied or unavailable — claim still proceeds
+		}
+
 		try {
 			const res = await fetch(`/api/donations/${donation.id}/claim`, {
 				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ lat, lng }),
 			});
 			if (!res.ok) {
 				const err = await res.json().catch(() => ({}));
