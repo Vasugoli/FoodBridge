@@ -7,7 +7,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { getUserById, unclaimDonation } from "@/lib/db";
+import { getUserById, unclaimDonation, donationIdQuery } from "@/lib/db";
 import { getDb } from "@/lib/mongodb";
 import type { Donation } from "@/lib/types";
 import { broadcast } from "@/lib/sse";
@@ -38,7 +38,7 @@ export async function POST(
 
 		// Find donation by string id first for the unclaimDonation helper
 		const db = await getDb(DB_NAME);
-		const donation = await db.collection<Donation>("donations").findOne({ id });
+		const donation = await db.collection<Donation>("donations").findOne(donationIdQuery(id));
 		if (!donation) {
 			return NextResponse.json({ error: "Donation not found" }, { status: 404 });
 		}
@@ -49,7 +49,9 @@ export async function POST(
 			return NextResponse.json({ error: "No claimer found" }, { status: 400 });
 		}
 
-		await unclaimDonation(id, distributorId);
+		// Use the resolved canonical donation.id (may differ from URL id for ObjectId-only donations)
+		const canonicalId = donation.id || id;
+		await unclaimDonation(canonicalId, distributorId);
 
 		broadcast("new_donation", {
 			donationId: id,

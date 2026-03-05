@@ -206,14 +206,16 @@ export default function ClaimedDonationsList({
 					</DialogHeader>
 
 					{/* Message list */}
-					{getThread(activeDonation!).length === 0 ? (
+					{!activeDonation ? (
+						<p className='text-sm text-muted-foreground italic text-center py-4'>Loading…</p>
+					) : getThread(activeDonation).length === 0 ? (
 						<p className='text-sm text-muted-foreground italic text-center py-4'>
 							No messages yet. Start the conversation below.
 						</p>
 					) : (
 						<ScrollArea className='h-56 rounded-md border bg-muted/30 p-3'>
 							<div className='space-y-3'>
-								{getThread(activeDonation!).map((msg) => (
+								{getThread(activeDonation).map((msg) => (
 									<div key={msg.id} className='flex flex-col gap-0.5'>
 										<div className='flex items-center gap-2'>
 											<span className='text-xs font-semibold'>{msg.authorName}</span>

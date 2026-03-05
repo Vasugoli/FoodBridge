@@ -34,7 +34,12 @@ import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import LocationPicker from "@/components/map/location-picker";
+import dynamic from "next/dynamic";
+
+const LocationPicker = dynamic(
+	() => import("@/components/map/location-picker"),
+	{ ssr: false },
+);
 import Image from "next/image";
 import { Progress } from "@/components/ui/progress";
 import { FOOD_CATEGORY_LABELS, QUANTITY_UNIT_LABELS } from "@/lib/types";
@@ -47,7 +52,15 @@ const donationFormSchema = z.object({
 		.min(10, "Description must be at least 10 characters.")
 		.max(500, "Description must be less than 500 characters."),
 	category: z.enum(
-		["cooked_food", "packaged_goods", "produce", "bakery", "dairy", "beverages", "other"],
+		[
+			"cooked_food",
+			"packaged_goods",
+			"produce",
+			"bakery",
+			"dairy",
+			"beverages",
+			"other",
+		],
 		{ required_error: "Category is required." },
 	),
 	quantityValue: z.coerce
@@ -104,7 +117,10 @@ export default function DonationForm() {
 			formData.append("file", file);
 			setUploadProgress(50);
 
-			const res = await fetch("/api/upload", { method: "POST", body: formData });
+			const res = await fetch("/api/upload", {
+				method: "POST",
+				body: formData,
+			});
 			setUploadProgress(90);
 
 			if (!res.ok) {
@@ -115,11 +131,15 @@ export default function DonationForm() {
 			const { url } = await res.json();
 			form.setValue("imageUrl", url);
 			setUploadProgress(100);
-			toast({ title: "Image uploaded", description: "Your photo is ready." });
+			toast({
+				title: "Image uploaded",
+				description: "Your photo is ready.",
+			});
 		} catch (error) {
 			toast({
 				title: "Upload failed",
-				description: error instanceof Error ? error.message : "Try again",
+				description:
+					error instanceof Error ? error.message : "Try again",
 				variant: "destructive",
 			});
 			setImagePreview(null);
@@ -144,16 +164,17 @@ export default function DonationForm() {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
-					title:         data.title,
-					description:   data.description,
-					category:      data.category,
+					title: data.title,
+					description: data.description,
+					category: data.category,
+					quantity: `${data.quantityValue} ${data.quantityUnit}`,
 					quantityValue: data.quantityValue,
-					quantityUnit:  data.quantityUnit,
+					quantityUnit: data.quantityUnit,
 					contactNumber: data.contactNumber || undefined,
-					expiry:        data.expiry.toISOString(),
-					location:      data.locationAddress,
-					coordinates:   data.coordinates,
-					imageUrl:      data.imageUrl,
+					expiry: data.expiry.toISOString(),
+					location: data.locationAddress || undefined,
+					coordinates: data.coordinates,
+					imageUrl: data.imageUrl || undefined,
 				}),
 			});
 
@@ -162,14 +183,23 @@ export default function DonationForm() {
 				throw new Error(error.error || "Failed to create donation");
 			}
 
-			toast({ title: "Donation Posted!", description: "Your donation has been successfully listed." });
+			toast({
+				title: "Donation Posted!",
+				description: "Your donation has been successfully listed.",
+			});
 			form.reset();
 			setImagePreview(null);
-			setTimeout(() => { router.push("/dashboard"); router.refresh(); }, 1000);
+			setTimeout(() => {
+				router.push("/dashboard");
+				router.refresh();
+			}, 1000);
 		} catch (error) {
 			toast({
 				title: "Error",
-				description: error instanceof Error ? error.message : "Failed to create donation. Please try again.",
+				description:
+					error instanceof Error
+						? error.message
+						: "Failed to create donation. Please try again.",
 				variant: "destructive",
 			});
 		} finally {
@@ -188,7 +218,10 @@ export default function DonationForm() {
 						<FormItem>
 							<FormLabel>Donation Title</FormLabel>
 							<FormControl>
-								<Input placeholder='e.g., Fresh Bread Loaves' {...field} />
+								<Input
+									placeholder='e.g., Fresh Bread Loaves'
+									{...field}
+								/>
 							</FormControl>
 							<FormMessage />
 						</FormItem>
@@ -203,7 +236,10 @@ export default function DonationForm() {
 						<FormItem>
 							<FormLabel>Description</FormLabel>
 							<FormControl>
-								<Textarea placeholder='Describe the items, condition, and any allergens.' {...field} />
+								<Textarea
+									placeholder='Describe the items, condition, and any allergens.'
+									{...field}
+								/>
 							</FormControl>
 							<FormMessage />
 						</FormItem>
@@ -217,14 +253,20 @@ export default function DonationForm() {
 					render={({ field }) => (
 						<FormItem>
 							<FormLabel>Food Category</FormLabel>
-							<Select onValueChange={field.onChange} defaultValue={field.value}>
+							<Select
+								onValueChange={field.onChange}
+								defaultValue={field.value}>
 								<FormControl>
 									<SelectTrigger className='rounded-lg'>
 										<SelectValue placeholder='Select a category…' />
 									</SelectTrigger>
 								</FormControl>
 								<SelectContent>
-									{(Object.keys(FOOD_CATEGORY_LABELS) as FoodCategory[]).map((key) => (
+									{(
+										Object.keys(
+											FOOD_CATEGORY_LABELS,
+										) as FoodCategory[]
+									).map((key) => (
 										<SelectItem key={key} value={key}>
 											{FOOD_CATEGORY_LABELS[key]}
 										</SelectItem>
@@ -250,6 +292,7 @@ export default function DonationForm() {
 										min={1}
 										placeholder='e.g. 10'
 										{...field}
+										value={field.value ?? ""}
 									/>
 								</FormControl>
 								<FormMessage />
@@ -262,14 +305,20 @@ export default function DonationForm() {
 						render={({ field }) => (
 							<FormItem>
 								<FormLabel>Unit</FormLabel>
-								<Select onValueChange={field.onChange} defaultValue={field.value}>
+								<Select
+									onValueChange={field.onChange}
+									defaultValue={field.value}>
 									<FormControl>
 										<SelectTrigger className='rounded-lg'>
 											<SelectValue placeholder='Select unit…' />
 										</SelectTrigger>
 									</FormControl>
 									<SelectContent>
-										{(Object.keys(QUANTITY_UNIT_LABELS) as QuantityUnit[]).map((key) => (
+										{(
+											Object.keys(
+												QUANTITY_UNIT_LABELS,
+											) as QuantityUnit[]
+										).map((key) => (
 											<SelectItem key={key} value={key}>
 												{QUANTITY_UNIT_LABELS[key]}
 											</SelectItem>
@@ -296,7 +345,9 @@ export default function DonationForm() {
 								/>
 							</FormControl>
 							<FormDescription>
-								Provide a phone number for the distributor to reach you easily. It will only be visible to them once they claim the donation.
+								Provide a phone number for the distributor to
+								reach you easily. It will only be visible to
+								them once they claim the donation.
 							</FormDescription>
 							<FormMessage />
 						</FormItem>
@@ -315,21 +366,34 @@ export default function DonationForm() {
 											variant={"outline"}
 											className={cn(
 												"w-full pl-3 text-left font-normal",
-												!field.value && "text-muted-foreground"
+												!field.value &&
+													"text-muted-foreground",
 											)}>
-											{field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
+											{field.value ? (
+												format(field.value, "PPP")
+											) : (
+												<span>Pick a date</span>
+											)}
 											<CalendarIcon className='ml-auto h-4 w-4 opacity-50' />
 										</Button>
 									</FormControl>
 								</PopoverTrigger>
-								<PopoverContent className='w-auto p-0' align='start'>
+								<PopoverContent
+									className='w-auto p-0'
+									align='start'>
 									<Calendar
 										mode='single'
 										selected={field.value}
 										onSelect={field.onChange}
 										disabled={(date) =>
 											date < new Date() ||
-											date > new Date(new Date().setDate(new Date().getDate() + 30))
+											date >
+												new Date(
+													new Date().setDate(
+														new Date().getDate() +
+															30,
+													),
+												)
 										}
 										initialFocus
 									/>
@@ -351,12 +415,20 @@ export default function DonationForm() {
 								<div className='space-y-2'>
 									<LocationPicker
 										onChange={(loc) => {
-											field.onChange({ lat: loc.lat, lng: loc.lng });
-											if (loc.address) form.setValue("locationAddress", loc.address);
+											field.onChange({
+												lat: loc.lat,
+												lng: loc.lng,
+											});
+											if (loc.address)
+												form.setValue(
+													"locationAddress",
+													loc.address,
+												);
 										}}
 									/>
 									<div className='text-sm text-muted-foreground'>
-										Click on the map to select a pickup point.
+										Click on the map to select a pickup
+										point.
 									</div>
 								</div>
 							</FormControl>
@@ -372,7 +444,10 @@ export default function DonationForm() {
 						<FormItem>
 							<FormLabel>Address (optional)</FormLabel>
 							<FormControl>
-								<Input placeholder='Resolved address' {...field} />
+								<Input
+									placeholder='Resolved address'
+									{...field}
+								/>
 							</FormControl>
 							<FormDescription>
 								You can refine the address if needed.
@@ -403,7 +478,10 @@ export default function DonationForm() {
 							</button>
 							{isUploading && (
 								<div className='absolute bottom-0 left-0 right-0 p-2 bg-black/50'>
-									<Progress value={uploadProgress} className='h-2' />
+									<Progress
+										value={uploadProgress}
+										className='h-2'
+									/>
 								</div>
 							)}
 						</div>
@@ -412,14 +490,21 @@ export default function DonationForm() {
 							htmlFor='dropzone-file'
 							className={cn(
 								"flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer bg-secondary transition-colors",
-								isUploading ? "opacity-50 pointer-events-none" : "hover:bg-muted hover:border-primary/40"
+								isUploading
+									? "opacity-50 pointer-events-none"
+									: "hover:bg-muted hover:border-primary/40",
 							)}>
 							<div className='flex flex-col items-center justify-center gap-2'>
 								<ImageIcon className='w-8 h-8 text-muted-foreground' />
 								<p className='text-sm text-muted-foreground'>
-									<span className='font-semibold'>Click to upload</span> or drag and drop
+									<span className='font-semibold'>
+										Click to upload
+									</span>{" "}
+									or drag and drop
 								</p>
-								<p className='text-xs text-muted-foreground'>PNG, JPG, WebP — max 5 MB</p>
+								<p className='text-xs text-muted-foreground'>
+									PNG, JPG, WebP — max 5 MB
+								</p>
 							</div>
 						</label>
 					)}
@@ -434,7 +519,10 @@ export default function DonationForm() {
 					/>
 				</FormItem>
 
-				<Button type='submit' className='w-full' disabled={isSubmitting || isUploading}>
+				<Button
+					type='submit'
+					className='w-full'
+					disabled={isSubmitting || isUploading}>
 					{isSubmitting ? "Posting…" : "Post Donation"}
 				</Button>
 			</form>

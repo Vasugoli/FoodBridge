@@ -14,7 +14,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { getDb } from "@/lib/mongodb";
-import { getUserById } from "@/lib/db";
+import { getUserById, donationIdQuery } from "@/lib/db";
 import type { Donation } from "@/lib/types";
 import { sendEmail, EmailTemplates } from "@/lib/email";
 import { logError, logAudit } from "@/lib/logger";
@@ -51,9 +51,10 @@ export async function POST(
     }
 
     const db = await getDb(DB_NAME);
+    const query = donationIdQuery(resolvedParams.id);
     const donation = await db
       .collection<Donation>("donations")
-      .findOne({ id: resolvedParams.id });
+      .findOne(query);
 
     if (!donation) {
       return NextResponse.json({ error: "Donation not found" }, { status: 404 });
@@ -74,7 +75,7 @@ export async function POST(
     }
 
     await db.collection("donations").updateOne(
-      { id: resolvedParams.id },
+      query,
       { $set: { status: "completed", completedAt: new Date() } },
     );
 

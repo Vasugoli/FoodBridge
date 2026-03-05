@@ -3,7 +3,6 @@ import { Inter, Plus_Jakarta_Sans } from "next/font/google";
 // @ts-ignore: allow side-effect import of global CSS without explicit type declarations
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
-import { SocketProvider } from "@/components/providers/socket-provider";
 
 const inter = Inter({
 	subsets: ["latin"],
@@ -36,10 +35,8 @@ export default function RootLayout({
 			<body
 				className={`font-body antialiased`}
 				suppressHydrationWarning={true}>
-				<SocketProvider>
-					{children}
-					<Toaster />
-				</SocketProvider>
+				{children}
+				<Toaster />
 			</body>
 		</html>
 	);

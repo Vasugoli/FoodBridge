@@ -1,7 +1,7 @@
 "use client";
 import Image from "next/image";
 import { useState } from "react";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, format } from "date-fns";
 import type { Donation, MatchedDonation, UrgencyLevel } from "@/lib/types";
 import { FOOD_CATEGORY_LABELS } from "@/lib/types";
 import { urgencyColors, urgencyLabels } from "@/lib/matching";
@@ -30,7 +30,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { MapPin, Clock, Package, Navigation, Flag, Loader2 } from "lucide-react";
+import { MapPin, Clock, Package, Navigation, Flag, Loader2, ExternalLink, Phone, Mail, User2, Calendar, Info } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 type DonationCardProps = {
@@ -44,6 +44,7 @@ type DonationCardProps = {
 export default function DonationCard({ donation, onClaim, showContactInfo = false, reportable }: DonationCardProps) {
 	const { toast } = useToast();
 	const [reportOpen, setReportOpen] = useState(false);
+	const [detailsOpen, setDetailsOpen] = useState(false);
 	const [reason, setReason] = useState<string>("");
 	const [details, setDetails] = useState("");
 	const [reporting, setReporting] = useState(false);
@@ -212,14 +213,96 @@ export default function DonationCard({ donation, onClaim, showContactInfo = fals
 				) : (
 					<Button
 						variant='outline'
-						className='rounded-xl border-2 hover:border-primary/50 hover:bg-primary/5 transition-all duration-300'>
+						onClick={() => setDetailsOpen(true)}
+						className='rounded-xl border-2 hover:border-primary/50 hover:bg-primary/5 transition-all duration-300 gap-2'>
+						<Info className='h-4 w-4' />
 						View Details
 					</Button>
 				)}
 			</div>
 		</CardFooter>
 
-		{/* ── Report Dialog ──────────────────────────────────────────────── */}
+		{/* ── Details Dialog ───────────────────────────────────────────────── */}
+		<Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
+			<DialogContent className='sm:max-w-lg'>
+				<DialogHeader>
+					<DialogTitle className='text-xl'>{donation.title}</DialogTitle>
+					<DialogDescription className='flex items-center gap-2'>
+						<Badge className={`capitalize ${donation.status === 'available' ? 'bg-emerald-100 text-emerald-700' : donation.status === 'claimed' ? 'bg-blue-100 text-blue-700' : donation.status === 'completed' ? 'bg-gray-100 text-gray-700' : 'bg-red-100 text-red-700'} border`}>
+							{donation.status}
+						</Badge>
+						{donation.category && (
+							<Badge variant='secondary' className='capitalize text-xs'>
+								{FOOD_CATEGORY_LABELS[donation.category] ?? donation.category}
+							</Badge>
+						)}
+					</DialogDescription>
+				</DialogHeader>
+				<div className='space-y-4 py-2'>
+					{donation.description && (
+						<p className='text-sm text-muted-foreground leading-relaxed'>{donation.description}</p>
+					)}
+					<div className='grid grid-cols-2 gap-3'>
+						<div className='flex items-start gap-2 text-sm'>
+							<Package className='h-4 w-4 text-emerald-600 mt-0.5 flex-shrink-0' />
+							<div>
+								<p className='font-medium text-xs text-muted-foreground'>Quantity</p>
+								<p>{donation.quantity || `${(donation as any).quantityValue ?? ''} ${(donation as any).quantityUnit ?? ''}`.trim() || '—'}</p>
+							</div>
+						</div>
+						<div className='flex items-start gap-2 text-sm'>
+							<Calendar className='h-4 w-4 text-orange-500 mt-0.5 flex-shrink-0' />
+							<div>
+								<p className='font-medium text-xs text-muted-foreground'>Expires</p>
+								<p>{format(new Date(donation.expiry), 'PPp')}</p>
+							</div>
+						</div>
+						<div className='flex items-start gap-2 text-sm col-span-2'>
+							<MapPin className='h-4 w-4 text-primary mt-0.5 flex-shrink-0' />
+							<div>
+								<p className='font-medium text-xs text-muted-foreground'>Pickup Location</p>
+								<p>{donation.location.address || `${donation.location.lat?.toFixed(5)}, ${donation.location.lng?.toFixed(5)}`}</p>
+								<a
+									href={`https://www.google.com/maps?q=${donation.location.lat},${donation.location.lng}`}
+									target='_blank'
+									rel='noreferrer'
+									className='text-xs text-primary hover:underline flex items-center gap-0.5 mt-0.5'>
+									<ExternalLink className='h-3 w-3' /> Open in Google Maps
+								</a>
+							</div>
+						</div>
+					</div>
+
+					{/* Donor Info */}
+					<div className='rounded-xl border bg-muted/30 p-3 space-y-2'>
+						<p className='text-xs font-semibold text-muted-foreground uppercase tracking-wider'>Donor</p>
+						<div className='flex items-center gap-2 text-sm'>
+							<User2 className='h-4 w-4 text-muted-foreground' />
+							<span>{donation.donor.name}</span>
+						</div>
+						{showContactInfo && donation.status === 'claimed' && (
+							<>
+								<div className='flex items-center gap-2 text-sm'>
+									<Mail className='h-4 w-4 text-muted-foreground' />
+									<a href={`mailto:${donation.donor.email}`} className='text-primary hover:underline'>{donation.donor.email}</a>
+								</div>
+								{donation.contactNumber && (
+									<div className='flex items-center gap-2 text-sm'>
+										<Phone className='h-4 w-4 text-muted-foreground' />
+										<a href={`tel:${donation.contactNumber}`} className='text-primary hover:underline'>{donation.contactNumber}</a>
+									</div>
+								)}
+							</>
+						)}
+					</div>
+				</div>
+				<DialogFooter>
+					<Button variant='outline' onClick={() => setDetailsOpen(false)}>Close</Button>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
+
+
 		<Dialog open={reportOpen} onOpenChange={setReportOpen}>
 			<DialogContent className='sm:max-w-md'>
 				<DialogHeader>

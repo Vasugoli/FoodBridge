@@ -1,10 +1,10 @@
 import { UserTable } from "@/components/dashboard/admin/user-table";
 import { getUsersFromDb } from "@/lib/db";
-import { User } from "@/lib/types";
+import { SerializableUser } from "@/lib/types";
 
 export default async function ManageUsersPage() {
 	// Fetch users from MongoDB
-	let users: User[];
+	let users: SerializableUser[];
 	try {
 		users = await getUsersFromDb();
 	} catch (error) {

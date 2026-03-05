@@ -7,7 +7,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { nanoid } from "nanoid";
 import { getSession } from "@/lib/auth";
-import { getUserById, addCoordinationMessage } from "@/lib/db";
+import { getUserById, addCoordinationMessage, donationIdQuery } from "@/lib/db";
 import { getDb } from "@/lib/mongodb";
 import type { Donation, CoordinationMessage } from "@/lib/types";
 import { z } from "zod";
@@ -38,7 +38,7 @@ export async function PATCH(
 		}
 
 		const db = await getDb(DB_NAME);
-		const donation = await db.collection<Donation>("donations").findOne({ id });
+		const donation = await db.collection<Donation>("donations").findOne(donationIdQuery(id));
 		if (!donation) {
 			return NextResponse.json({ error: "Donation not found" }, { status: 404 });
 		}
@@ -78,7 +78,7 @@ export async function PATCH(
 			createdAt:  new Date().toISOString(),
 		};
 
-		await addCoordinationMessage(id, msg);
+		await addCoordinationMessage(donation.id || id, msg);
 
 		return NextResponse.json({ message: "Message added", coordination: msg });
 	} catch (error) {

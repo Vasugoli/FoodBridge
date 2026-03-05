@@ -2,8 +2,26 @@ import { getDb } from "./mongodb";
 import { mockDonations } from "./placeholder-data";
 import type { User, Donation, SerializableUser, DonationReport, CoordinationMessage } from "./types";
 import bcrypt from "bcryptjs";
+import { ObjectId } from "mongodb";
 
 const DB_NAME = "foodbridge";
+
+/**
+ * Build a MongoDB query that matches a donation by either:
+ *  - the app's custom string `id` field, OR
+ *  - the MongoDB `_id` ObjectId (when the id looks like a hex ObjectId).
+ *
+ * Seeded or legacy donations may have `_id.toString()` as their `id` value,
+ * so we always try both paths.
+ */
+export function donationIdQuery(id: string) {
+	try {
+		return { $or: [{ id }, { _id: new ObjectId(id) }] };
+	} catch {
+		// id is not a valid ObjectId hex — plain string match only
+		return { id };
+	}
+}
 
 // Helper function to serialize MongoDB documents for client components
 // Removes _id, converts Dates to ISO strings, removes passwordHash
@@ -26,7 +44,7 @@ export function serializeUser(user: any): SerializableUser {
 export function serializeDonation(donation: any): Donation {
 	if (!donation) return donation;
 
-	const { _id, createdAt, expiry, donor, completedAt, unclaimedAt, coordinationMessages, ...rest } = donation;
+	const { _id, createdAt, expiry, donor, completedAt, unclaimedAt, coordinationMessages, claimedBy, ...rest } = donation;
 
 	// Serialize coordination messages: convert any Date createdAt to ISO string
 	const serializedMessages: CoordinationMessage[] | undefined = coordinationMessages
@@ -44,6 +62,7 @@ export function serializeDonation(donation: any): Donation {
 		completedAt:           completedAt instanceof Date ? completedAt.toISOString() : completedAt,
 		unclaimedAt:           unclaimedAt instanceof Date ? unclaimedAt.toISOString() : unclaimedAt,
 		donor:                 donor ? serializeUser(donor) : donor,
+		claimedBy:             claimedBy ? serializeUser(claimedBy) : claimedBy,
 		coordinationMessages:  serializedMessages,
 	} as Donation;
 }
@@ -413,7 +432,7 @@ export async function addCoordinationMessage(
 ) {
 	const db = await getDb(DB_NAME);
 	await db.collection("donations").updateOne(
-		{ id: donationId },
+		donationIdQuery(donationId),
 		{
 			$push: { coordinationMessages: message } as any,
 			$set:  { pickupNote: message.message },
