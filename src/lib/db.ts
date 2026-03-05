@@ -56,6 +56,12 @@ export async function getUserByRole(role: User["role"]) {
 	return user ? serializeUser(user) : null;
 }
 
+export async function getUsersByRoleList(role: User["role"]) {
+	const db = await getDb(DB_NAME);
+	const users = await db.collection<User>("users").find({ role }).toArray();
+	return users.map(serializeUser);
+}
+
 // Authentication functions
 export async function getUserByEmail(email: string) {
 	const db = await getDb(DB_NAME);
@@ -120,6 +126,44 @@ export async function verifyUserPassword(email: string, password: string) {
 	// Return user without password hash
 	const { passwordHash: _, ...userWithoutPassword } = user;
 	return userWithoutPassword;
+}
+
+export async function updateUserProfile(id: string, name: string, email: string) {
+	const db = await getDb(DB_NAME);
+
+	// Check if the new email is already used by another user
+	const existingUser = await getUserByEmail(email);
+	if (existingUser && existingUser.id !== id) {
+		throw new Error("Email is already in use by another account");
+	}
+
+	const result = await db.collection("users").findOneAndUpdate(
+		{ id },
+		{ $set: { name, email } },
+		{ returnDocument: 'after' }
+	);
+
+	if (!result) {
+		throw new Error("User not found");
+	}
+
+	const { passwordHash: _, ...userWithoutPassword } = result as any;
+	return serializeUser(userWithoutPassword);
+}
+
+export async function updateUserPassword(id: string, newPasswordHash: string) {
+	const db = await getDb(DB_NAME);
+
+	const result = await db.collection("users").updateOne(
+		{ id },
+		{ $set: { passwordHash: newPasswordHash } }
+	);
+
+	if (result.matchedCount === 0) {
+		throw new Error("User not found");
+	}
+
+	return true;
 }
 
 export async function getDonationsFromDb() {

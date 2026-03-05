@@ -39,6 +39,7 @@ const donationFormSchema = z.object({
 	expiry: z.date({ required_error: "An expiry date is required." }),
 	coordinates: z.object({ lat: z.number(), lng: z.number() }),
 	locationAddress: z.string().optional(),
+	contactNumber: z.string().optional(),
 	image: z.any().optional(),
 });
 
@@ -48,6 +49,7 @@ const defaultValues: Partial<DonationFormValues> = {
 	title: "",
 	description: "",
 	quantity: "",
+	contactNumber: "",
 	locationAddress: "",
 };
 
@@ -74,6 +76,7 @@ export default function DonationForm() {
 					title: data.title,
 					description: data.description,
 					quantity: data.quantity,
+					contactNumber: data.contactNumber || undefined,
 					expiry: data.expiry.toISOString(),
 					location: data.locationAddress,
 					coordinates: data.coordinates,
@@ -159,6 +162,25 @@ export default function DonationForm() {
 									{...field}
 								/>
 							</FormControl>
+							<FormMessage />
+						</FormItem>
+					)}
+				/>
+				<FormField
+					control={form.control}
+					name='contactNumber'
+					render={({ field }) => (
+						<FormItem>
+							<FormLabel>Contact Number (Optional)</FormLabel>
+							<FormControl>
+								<Input
+									placeholder='e.g., (555) 123-4567'
+									{...field}
+								/>
+							</FormControl>
+							<FormDescription>
+								Provide a phone number for the distributor to reach you easily. It will only be visible to them once they claim the donation.
+							</FormDescription>
 							<FormMessage />
 						</FormItem>
 					)}

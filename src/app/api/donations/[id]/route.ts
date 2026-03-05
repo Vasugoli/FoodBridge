@@ -30,20 +30,17 @@ export async function PATCH(
 		}
 
 		const id = resolvedParams.id;
-		let _id: ObjectId;
+		let query: any;
 		try {
-			_id = new ObjectId(id);
+			query = { $or: [{ _id: new ObjectId(id) }, { id }] };
 		} catch {
-			return NextResponse.json(
-				{ error: "Invalid donation id" },
-				{ status: 400 }
-			);
+			query = { id };
 		}
 
 		const db = await getDb(DB_NAME);
 		const existing = await db
 			.collection<Donation>("donations")
-			.findOne({ _id });
+			.findOne(query);
 		if (!existing) {
 			return NextResponse.json(
 				{ error: "Donation not found" },
@@ -77,7 +74,7 @@ export async function PATCH(
 			);
 		}
 
-		await db.collection("donations").updateOne({ _id }, { $set: update });
+		await db.collection("donations").updateOne(query, { $set: update });
 
 		return NextResponse.json({ message: "Donation updated" });
 	} catch (error) {
@@ -112,20 +109,17 @@ export async function DELETE(
 		}
 
 		const id = resolvedParams.id;
-		let _id: ObjectId;
+		let query: any;
 		try {
-			_id = new ObjectId(id);
+			query = { $or: [{ _id: new ObjectId(id) }, { id }] };
 		} catch {
-			return NextResponse.json(
-				{ error: "Invalid donation id" },
-				{ status: 400 }
-			);
+			query = { id };
 		}
 
 		const db = await getDb(DB_NAME);
 		const existing = await db
 			.collection<Donation>("donations")
-			.findOne({ _id });
+			.findOne(query);
 		if (!existing) {
 			return NextResponse.json(
 				{ error: "Donation not found" },
@@ -138,7 +132,7 @@ export async function DELETE(
 			return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 		}
 
-		await db.collection("donations").deleteOne({ _id });
+		await db.collection("donations").deleteOne(query);
 		return NextResponse.json({ message: "Donation deleted" });
 	} catch (error) {
 		console.error("Error deleting donation:", error);

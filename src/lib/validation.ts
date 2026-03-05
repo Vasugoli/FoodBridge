@@ -58,6 +58,7 @@ export const createDonationSchema = z.object({
 		.min(1, "Quantity is required")
 		.max(50, "Quantity description too long")
 		.trim(),
+	contactNumber: z.string().optional(),
 	expiry: z.coerce.date().refine((date) => date > new Date(), {
 		message: "Expiry date must be in the future",
 	}),

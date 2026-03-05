@@ -72,6 +72,7 @@ export async function POST(request: NextRequest) {
 			title,
 			description,
 			quantity,
+			contactNumber,
 			expiry,
 			location,
 			coordinates,
@@ -83,12 +84,14 @@ export async function POST(request: NextRequest) {
 		const sanitizedTitle = DOMPurify.sanitize(title);
 		const sanitizedDescription = DOMPurify.sanitize(description);
 		const sanitizedQuantity = DOMPurify.sanitize(quantity);
+		const sanitizedContact = contactNumber ? DOMPurify.sanitize(contactNumber) : undefined;
 
 		// Create donation object
 		const donation: Omit<Donation, "id"> = {
 			title: sanitizedTitle,
 			description: sanitizedDescription,
 			quantity: sanitizedQuantity,
+			contactNumber: sanitizedContact,
 			status: "available",
 			expiry: new Date(expiry),
 			createdAt: new Date(),
@@ -114,10 +117,30 @@ export async function POST(request: NextRequest) {
 		const db = await getDb(DB_NAME);
 		const result = await db.collection("donations").insertOne(donation);
 
-		// Send confirmation email
+		// Send confirmation email to Donor
 		await sendEmail({
 			to: user.email,
 			...EmailTemplates.donationPosted(user.name, sanitizedTitle),
+		});
+
+		// Fetch all active distributors and notify them asynchronously
+		import("@/lib/db").then(async ({ getUsersByRoleList }) => {
+			try {
+				const distributors = await getUsersByRoleList("distributor");
+				const dashboardLink = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:9002"}/dashboard`;
+
+				const emailPromises = distributors.map(dist =>
+					sendEmail({
+						to: dist.email,
+						...EmailTemplates.newDonationAvailable(dist.name, user.name, sanitizedTitle, dashboardLink)
+					})
+				);
+
+				await Promise.allSettled(emailPromises);
+				logInfo(`Alerted ${distributors.length} distributors of new donation ${result.insertedId.toString()}`);
+			} catch (err) {
+				logError("Failed to notify distributors", err);
+			}
 		});
 
 		// Audit log

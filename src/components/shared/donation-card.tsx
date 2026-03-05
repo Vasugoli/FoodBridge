@@ -16,9 +16,10 @@ import { MapPin, Clock, Package } from "lucide-react";
 type DonationCardProps = {
 	donation: Donation;
 	onClaim?: (donation: Donation) => void;
+	showContactInfo?: boolean;
 };
 
-export default function DonationCard({ donation, onClaim }: DonationCardProps) {
+export default function DonationCard({ donation, onClaim, showContactInfo = false }: DonationCardProps) {
 	const imgSrc =
 		donation.imageUrl && donation.imageUrl.startsWith("/")
 			? "https://placehold.co/800x450/jpg?text=Donation"
@@ -87,6 +88,22 @@ export default function DonationCard({ donation, onClaim }: DonationCardProps) {
 						<span>{donation.quantity}</span>
 					</div>
 				</div>
+
+				{showContactInfo && donation.status === "claimed" && (
+					<div className='mt-4 p-3 bg-secondary rounded-lg space-y-2 border border-border'>
+						<p className='text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2'>Donor Contact Info</p>
+						<p className='text-sm text-foreground flex items-center'>
+							<span className='w-16 inline-block font-medium'>Email:</span>
+							<a href={`mailto:${donation.donor.email}`} className="text-primary hover:underline">{donation.donor.email}</a>
+						</p>
+						{donation.contactNumber && (
+							<p className='text-sm text-foreground flex items-center'>
+								<span className='w-16 inline-block font-medium'>Phone:</span>
+								<a href={`tel:${donation.contactNumber}`} className="text-primary hover:underline">{donation.contactNumber}</a>
+							</p>
+						)}
+					</div>
+				)}
 			</CardContent>
 
 			<CardFooter className='p-6 pt-0 flex justify-between items-center gap-3'>

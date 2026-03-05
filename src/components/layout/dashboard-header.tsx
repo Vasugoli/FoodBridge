@@ -153,14 +153,6 @@ export function DashboardHeader({ user }: { user: SerializableUser }) {
 							Profile
 						</Link>
 					</DropdownMenuItem>
-					<DropdownMenuItem
-						asChild
-						className='rounded-lg cursor-pointer'>
-						<Link href='/dashboard' className='flex items-center'>
-							<Settings className='mr-3 h-4 w-4' />
-							Settings
-						</Link>
-					</DropdownMenuItem>
 					<DropdownMenuSeparator />
 					<DropdownMenuItem
 						onClick={handleLogout}

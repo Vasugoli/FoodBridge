@@ -70,6 +70,20 @@ export default function LocationPicker({
 				icon: defaultIcon,
 			}).addTo(map);
 			markerRef.current = m;
+		} else {
+			// If no initial value is provided, safely try to grab the user's location on load
+			if (navigator.geolocation && mapRef.current) {
+				navigator.geolocation.getCurrentPosition(
+					(pos) => {
+						const { latitude: lat, longitude: lng } = pos.coords;
+						mapRef.current!.setView([lat, lng], 14);
+					},
+					() => {
+						// Ignore errors (user denied location or taking too long), default center LA handles it
+					},
+					{ timeout: 5000 }
+				);
+			}
 		}
 
 		// Click handler to set marker and update state

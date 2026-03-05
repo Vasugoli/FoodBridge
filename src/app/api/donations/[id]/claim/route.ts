@@ -54,20 +54,17 @@ export async function POST(
 			);
 		}
 
-		let _id: ObjectId;
+		let query: any;
 		try {
-			_id = new ObjectId(resolvedParams.id);
+			query = { $or: [{ _id: new ObjectId(resolvedParams.id) }, { id: resolvedParams.id }] };
 		} catch {
-			return NextResponse.json(
-				{ error: "Invalid donation id" },
-				{ status: 400 },
-			);
+			query = { id: resolvedParams.id };
 		}
 
 		const db = await getDb(DB_NAME);
 		const donation = await db
 			.collection<Donation>("donations")
-			.findOne({ _id });
+			.findOne(query);
 		if (!donation) {
 			return NextResponse.json(
 				{ error: "Donation not found" },
@@ -83,7 +80,7 @@ export async function POST(
 		}
 
 		await db.collection("donations").updateOne(
-			{ _id },
+			query,
 			{
 				$set: {
 					status: "claimed",
@@ -93,16 +90,33 @@ export async function POST(
 			},
 		);
 
-		// Send email to donor
-		if (donation.donor?.email) {
-			await sendEmail({
-				to: donation.donor.email,
-				...EmailTemplates.donationClaimed(
-					donation.donor.name,
-					donation.title,
-					user.name,
-				),
+		// Emit real-time event to all connected socket clients
+		if ((global as any).io) {
+			(global as any).io.emit("donation_claimed", {
+				donationId: resolvedParams.id,
+				claimedBy: {
+					id: user.id,
+					name: user.name,
+				},
 			});
+		}
+
+		// Send email to donor reliably by fetching fresh donor data
+		if (donation.donor?.id) {
+			const freshDonorData = await getUserById(donation.donor.id);
+			if (freshDonorData && freshDonorData.email) {
+				await sendEmail({
+					to: freshDonorData.email,
+					...EmailTemplates.donationClaimed(
+						freshDonorData.name,
+						donation.title,
+						user.name,
+						user.email,
+					),
+				});
+			} else {
+				logError("Could not send claim email to donor: missing fresh donor email", { donorId: donation.donor.id });
+			}
 		}
 
 		// Send confirmation to distributor
@@ -113,6 +127,8 @@ export async function POST(
 				donation.title,
 				donation.location.address ||
 					`${donation.location.lat}, ${donation.location.lng}`,
+				donation.donor?.email || "",
+				donation.contactNumber,
 			),
 		});
 

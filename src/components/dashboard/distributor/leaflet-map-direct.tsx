@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useMemo } from "react";
+import { useEffect, useRef, useMemo, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { mockDonations } from "@/lib/placeholder-data";
 import type { Donation } from "@/lib/types";
+import { useSocket } from "@/components/providers/socket-provider";
 
 interface LeafletMapProps {
 	donations?: Donation[];
@@ -23,11 +24,38 @@ export default function LeafletMap({
 		[]
 	);
 
-	// Filter available donations
-	const availableDonations = useMemo(
+	// Filter available donations initially
+	const initialAvailable = useMemo(
 		() => donations.filter((d) => d.status === "available"),
 		[donations]
 	);
+
+	const [availableDonations, setAvailableDonations] = useState<Donation[]>(initialAvailable);
+
+	// Update if props change
+	useEffect(() => {
+		setAvailableDonations(donations.filter((d) => d.status === "available"));
+	}, [donations]);
+
+	// Listen for live socket events
+	const { socket } = useSocket();
+
+	useEffect(() => {
+		if (!socket) return;
+
+		const handleDonationClaimed = (data: { donationId: string }) => {
+			// Remove the claimed donation from the map
+			setAvailableDonations((prev) =>
+				prev.filter((d: any) => d.id !== data.donationId && d._id !== data.donationId)
+			);
+		};
+
+		socket.on("donation_claimed", handleDonationClaimed);
+
+		return () => {
+			socket.off("donation_claimed", handleDonationClaimed);
+		};
+	}, [socket]);
 
 	// Create custom icon with CDN paths (more reliable than local imports)
 	const defaultIcon = useMemo(
@@ -93,36 +121,47 @@ export default function LeafletMap({
 		});
 		markersRef.current = [];
 
-		// Add markers for available donations
-		availableDonations.forEach((donation) => {
-			const marker = L.marker(
-				[donation.location.lat, donation.location.lng],
-				{ icon: defaultIcon }
-			).addTo(map);
+		if (availableDonations.length > 0) {
+			const bounds = L.latLngBounds([]);
 
-			const expiryDate =
-				typeof donation.expiry === "string"
-					? new Date(donation.expiry).toLocaleDateString()
-					: donation.expiry.toLocaleDateString();
+			// Add markers for available donations
+			availableDonations.forEach((donation) => {
+				const marker = L.marker(
+					[donation.location.lat, donation.location.lng],
+					{ icon: defaultIcon }
+				).addTo(map);
 
-			marker.bindPopup(`
-				<div style="padding: 8px; min-width: 200px;">
-					<h3 style="font-weight: bold; font-size: 14px; margin-bottom: 4px;">
-						${donation.title}
-					</h3>
-					<p style="font-size: 12px; color: #666; margin-bottom: 8px;">
-						${donation.description}
-					</p>
-					<div style="font-size: 12px;">
-						<p><strong>Quantity:</strong> ${donation.quantity}</p>
-						<p><strong>Location:</strong> ${donation.location.address}</p>
-						<p><strong>Expires:</strong> ${expiryDate}</p>
+				bounds.extend([donation.location.lat, donation.location.lng]);
+
+				const expiryDate =
+					typeof donation.expiry === "string"
+						? new Date(donation.expiry).toLocaleDateString()
+						: donation.expiry.toLocaleDateString();
+
+				marker.bindPopup(`
+					<div style="padding: 8px; min-width: 200px;">
+						<h3 style="font-weight: bold; font-size: 14px; margin-bottom: 4px;">
+							${donation.title}
+						</h3>
+						<p style="font-size: 12px; color: #666; margin-bottom: 8px;">
+							${donation.description}
+						</p>
+						<div style="font-size: 12px;">
+							<p><strong>Quantity:</strong> ${donation.quantity}</p>
+							<p><strong>Location:</strong> ${donation.location.address}</p>
+							<p><strong>Expires:</strong> ${expiryDate}</p>
+						</div>
 					</div>
-				</div>
-			`);
+				`);
 
-			markersRef.current.push(marker);
-		});
+				markersRef.current.push(marker);
+			});
+
+			// Fit map to those bounds with a little padding
+			map.fitBounds(bounds, { padding: [50, 50], maxZoom: 14 });
+		} else {
+             // If no donations, map will safely stay at its initial default view.
+        }
 	}, [availableDonations, defaultIcon]);
 
 	return (

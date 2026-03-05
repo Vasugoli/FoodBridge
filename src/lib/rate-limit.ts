@@ -98,11 +98,21 @@ export async function checkRateLimit(
 	fallbackMax: number = 100,
 	fallbackWindow: number = 3600000, // 1 hour in ms
 ) {
+	// Bypass rate limit in development mode
+	if (process.env.NODE_ENV === "development") {
+		return {
+			success: true,
+			limit: fallbackMax,
+			remaining: fallbackMax,
+			reset: Date.now() + fallbackWindow,
+		};
+	}
+
 	if (limiter) {
 		return await limiter.limit(identifier);
 	}
 
-	// Fallback to in-memory for development
+	// Fallback to in-memory for production without redis
 	return await inMemoryStore.limit(identifier, fallbackMax, fallbackWindow);
 }
 

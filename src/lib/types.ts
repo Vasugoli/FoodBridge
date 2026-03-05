@@ -54,6 +54,7 @@ export interface Donation {
 	status: DonationStatus;
 	donor: User | SerializableUser;
 	claimedBy?: User | SerializableUser;
+	contactNumber?: string;
 	createdAt: Date | string;
 }
 

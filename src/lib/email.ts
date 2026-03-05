@@ -1,7 +1,16 @@
-import { Resend } from "resend";
+import nodemailer from "nodemailer";
 
-const resend = process.env.RESEND_API_KEY
-	? new Resend(process.env.RESEND_API_KEY)
+// Configure the nodemailer transporter
+const transporter = process.env.SMTP_HOST
+	? nodemailer.createTransport({
+			host: process.env.SMTP_HOST,
+			port: parseInt(process.env.SMTP_PORT || "587"),
+			secure: process.env.SMTP_SECURE === "true", // true for 465, false for other ports
+			auth: {
+				user: process.env.SMTP_USER,
+				pass: process.env.SMTP_PASSWORD,
+			},
+	  })
 	: null;
 
 // Fallback email service (logs to console in development)
@@ -24,11 +33,11 @@ export interface EmailOptions {
 	text?: string;
 }
 
-// Send email using Resend or fallback
+// Send email using Nodemailer or fallback
 export async function sendEmail(options: EmailOptions) {
 	try {
-		if (resend) {
-			const result = await resend.emails.send({
+		if (transporter) {
+			const info = await transporter.sendMail({
 				from:
 					process.env.FROM_EMAIL ||
 					"FoodBridge <noreply@foodbridge.com>",
@@ -37,7 +46,7 @@ export async function sendEmail(options: EmailOptions) {
 				html: options.html,
 				text: options.text,
 			});
-			return { success: true, id: result.data?.id };
+			return { success: true, id: info.messageId };
 		} else {
 			// Use fallback in development
 			return await fallbackService.send(options);
@@ -96,6 +105,27 @@ export const EmailTemplates = {
 				<p>You'll receive a notification when someone claims your donation.</p>
 				<p>Thank you for helping reduce food waste!</p>
 				<hr style="border: 1px solid #e5e7eb; margin: 20px 0;">
+		    <hr style="border: 1px solid #e5e7eb; margin: 20px 0;">
+				<p style="color: #6b7280; font-size: 12px;">FoodBridge - Fighting food waste, one meal at a time.</p>
+			</div>
+		`,
+	}),
+
+	newDonationAvailable: (distributorName: string, donorName: string, donationTitle: string, dashboardLink: string) => ({
+		subject: "New Food Donation Available nearby!",
+		html: `
+			<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+				<h1 style="color: #10B981;">New Donation Alert!</h1>
+				<p>Hi ${distributorName},</p>
+				<p><strong>${donorName}</strong> just posted a new donation: "<strong>${donationTitle}</strong>".</p>
+				<p>Log in to your dashboard to claim it before someone else does!</p>
+				<div style="text-align: center; margin: 30px 0;">
+					<a href="${dashboardLink}"
+					   style="background-color: #10B981; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">
+						View Dashboard
+					</a>
+				</div>
+				<hr style="border: 1px solid #e5e7eb; margin: 20px 0;">
 				<p style="color: #6b7280; font-size: 12px;">FoodBridge - Fighting food waste, one meal at a time.</p>
 			</div>
 		`,
@@ -105,6 +135,7 @@ export const EmailTemplates = {
 		donorName: string,
 		donationTitle: string,
 		distributorName: string,
+		distributorEmail: string,
 	) => ({
 		subject: "Your donation has been claimed!",
 		html: `
@@ -112,8 +143,12 @@ export const EmailTemplates = {
 				<h1 style="color: #10B981;">Great News!</h1>
 				<p>Hi ${donorName},</p>
 				<p>Your donation "<strong>${donationTitle}</strong>" has been claimed by ${distributorName}.</p>
-				<p>They will be in touch shortly to coordinate pickup.</p>
-				<p>Thank you for making a difference in your community!</p>
+				<div style="background-color: #f3f4f6; padding: 15px; border-radius: 8px; margin: 20px 0;">
+					<h3 style="margin-top: 0; color: #374151;">Distributor Contact Info:</h3>
+					<p style="margin: 0;"><strong>Name:</strong> ${distributorName}</p>
+					<p style="margin: 5px 0 0 0;"><strong>Email:</strong> <a href="mailto:${distributorEmail}" style="color: #10B981;">${distributorEmail}</a></p>
+				</div>
+				<p>They will be in touch shortly to coordinate pickup. Thank you for making a difference in your community!</p>
 				<hr style="border: 1px solid #e5e7eb; margin: 20px 0;">
 				<p style="color: #6b7280; font-size: 12px;">FoodBridge - Fighting food waste, one meal at a time.</p>
 			</div>
@@ -124,6 +159,8 @@ export const EmailTemplates = {
 		distributorName: string,
 		donationTitle: string,
 		pickupAddress: string,
+		donorEmail: string,
+		donorPhone?: string,
 	) => ({
 		subject: "Claim confirmed - Pickup details",
 		html: `
@@ -131,8 +168,13 @@ export const EmailTemplates = {
 				<h1 style="color: #10B981;">Claim Confirmed!</h1>
 				<p>Hi ${distributorName},</p>
 				<p>You have successfully claimed "<strong>${donationTitle}</strong>".</p>
-				<h3>Pickup Details:</h3>
-				<p><strong>Address:</strong> ${pickupAddress}</p>
+				<div style="background-color: #f3f4f6; padding: 15px; border-radius: 8px; margin: 20px 0;">
+					<h3 style="margin-top: 0; color: #374151;">Pickup Details:</h3>
+					<p style="margin: 0 0 10px 0;"><strong>Address:</strong> ${pickupAddress}</p>
+					<h3 style="margin-top: 15px; margin-bottom: 5px; color: #374151;">Donor Contact Info:</h3>
+					<p style="margin: 0;"><strong>Email:</strong> <a href="mailto:${donorEmail}" style="color: #10B981;">${donorEmail}</a></p>
+					${donorPhone ? `<p style="margin: 5px 0 0 0;"><strong>Phone:</strong> <a href="tel:${donorPhone}" style="color: #10B981;">${donorPhone}</a></p>` : ''}
+				</div>
 				<p>Please coordinate with the donor for pickup timing.</p>
 				<p>Thank you for your service to the community!</p>
 				<hr style="border: 1px solid #e5e7eb; margin: 20px 0;">
